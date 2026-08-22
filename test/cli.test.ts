@@ -73,6 +73,131 @@ describe.skipIf(!HAS_CONTRACTS_DIR)("release-evidence CLI negative injection", (
     rmSync(dir, { recursive: true, force: true });
   });
 
+  it("`record deployed --environment production` requires --bundle: exit 2 without it, exit 3 when the gate rejects it", () => {
+    const fixture = JSON.parse(
+      readFileSync(
+        path.join(CONTRACTS_DIR ?? "", "fixtures", "accept-collection-lane-backed-happy.json"),
+        "utf-8",
+      ),
+    ) as { bundles: Array<{ release_id: string; lane_ref: unknown }> };
+    const laneBackedBundle = fixture.bundles[0];
+    if (!laneBackedBundle) throw new Error("fixture has no bundles");
+
+    const dir = mkdtempSync(path.join(tmpdir(), "release-evidence-cli-prod-gate-"));
+    const ledgerPath = path.join(dir, "release-events.jsonl");
+    const bundlePath = path.join(dir, "bundle.json");
+    writeFileSync(bundlePath, JSON.stringify(laneBackedBundle));
+
+    const prepareResult = runCli(["prepare", "--bundle", bundlePath, "--ledger", ledgerPath]);
+    expect(prepareResult.status).toBe(0);
+    const { bundle_digest: bundleDigest } = JSON.parse(prepareResult.stdout) as {
+      bundle_digest: string;
+    };
+    const releaseId = laneBackedBundle.release_id;
+
+    const commonRecordArgs = [
+      "--ledger",
+      ledgerPath,
+      "--release-id",
+      releaseId,
+      "--bundle-digest",
+      bundleDigest,
+    ];
+    expect(
+      runCli(["record", "deployed", ...commonRecordArgs, "--environment", "preview"]).status,
+    ).toBe(0);
+    expect(
+      runCli(["record", "verified", ...commonRecordArgs, "--environment", "preview"]).status,
+    ).toBe(0);
+
+    const ledgerBeforeProduction = readFileSync(ledgerPath, "utf-8");
+
+    // Missing --bundle on a production deploy is a usage error (exit 2), not a silently
+    // unverified gate.
+    const withoutBundle = runCli([
+      "record",
+      "deployed",
+      ...commonRecordArgs,
+      "--environment",
+      "production",
+      "--staging-skipped",
+    ]);
+    expect(withoutBundle.status).toBe(2);
+    expect(readFileSync(ledgerPath, "utf-8")).toBe(ledgerBeforeProduction); // nothing written
+
+    // With --bundle supplied but no prior lane_done_overlay attestation recorded, the
+    // production gate itself must reject: exit 3, still nothing written.
+    const withBundleNoAttestation = runCli([
+      "record",
+      "deployed",
+      ...commonRecordArgs,
+      "--environment",
+      "production",
+      "--staging-skipped",
+      "--bundle",
+      bundlePath,
+    ]);
+    expect(withBundleNoAttestation.status).toBe(3);
+    expect(withBundleNoAttestation.stderr).toMatch(/production_gate_missing_done_attestation/);
+    expect(readFileSync(ledgerPath, "utf-8")).toBe(ledgerBeforeProduction); // nothing written
+
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("`status` refuses to fold a ledger containing a schema-invalid line", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "release-evidence-cli-status-invalid-"));
+    const ledgerPath = path.join(dir, "release-events.jsonl");
+    writeFileSync(
+      ledgerPath,
+      `${JSON.stringify({
+        schema_version: "release-evidence/v0",
+        event_id: "bad-1",
+        release_id: "demo@1.0.0",
+        kind: "unknown", // not a member of the schema's closed enum
+        environment: null,
+        occurred_at: "2026-08-22T00:00:00Z",
+        actor: "cli",
+        bundle_digest: `sha256:${"a".repeat(64)}`,
+      })}\n`,
+    );
+
+    const result = runCli(["status", "--ledger", ledgerPath]);
+
+    expect(result.status).toBe(2);
+    expect(result.stderr).toMatch(/contract-violating/);
+
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("`status --release-id` filters the reported attempts without breaking rollback resolution", () => {
+    const events = JSON.parse(
+      readFileSync(
+        path.join(CONTRACTS_DIR ?? "", "fixtures", "accept-events-rollback.json"),
+        "utf-8",
+      ),
+    ) as Array<{ release_id: string }>;
+
+    const dir = mkdtempSync(path.join(tmpdir(), "release-evidence-cli-status-filter-"));
+    const ledgerPath = path.join(dir, "release-events.jsonl");
+    writeFileSync(ledgerPath, `${events.map((e) => JSON.stringify(e)).join("\n")}\n`);
+
+    // demo@1.1.0's rolled_back event points back to demo@1.0.0, which only reached production
+    // in an EARLIER, different attempt -- filtering the report down to demo@1.1.0 must not
+    // cause that resolution check to lose sight of demo@1.0.0's events.
+    const filtered = runCli(["status", "--ledger", ledgerPath, "--release-id", "demo@1.1.0"]);
+
+    expect(filtered.status).toBe(0);
+    const body = JSON.parse(filtered.stdout) as {
+      attempts: Array<{ release_id: string }>;
+      ledger_problems: string[];
+    };
+    expect(body.ledger_problems).toEqual([]);
+    expect(body.attempts.every((a) => a.release_id === "demo@1.1.0")).toBe(true);
+    expect(body.attempts.length).toBeGreaterThan(0);
+
+    rmSync(dir, { recursive: true, force: true });
+  });
+
   it("`audit` fails a collection whose event carries a bundle_digest that resolves to no real bundle", () => {
     const fixture = JSON.parse(
       readFileSync(
@@ -99,5 +224,43 @@ describe.skipIf(!HAS_CONTRACTS_DIR)("release-evidence CLI negative injection", (
     expect(result.stderr).toMatch(/bundle_digest_unresolved/);
 
     rmSync(dir, { recursive: true, force: true });
+  });
+});
+
+// Argument-parsing checks don't touch schema validation, so they don't need
+// RELEASE_EVIDENCE_CONTRACTS_DIR -- this describe block runs unconditionally.
+describe("release-evidence CLI argument allowlist", () => {
+  beforeAll(() => {
+    execFileSync("pnpm", ["run", "build"], { cwd: REPO_ROOT, stdio: "pipe" });
+  });
+
+  it("rejects an unrecognized flag (typo) with exit 2", () => {
+    const result = runCli(["status", "--ledger", "/dev/null", "--relese-id", "x"]);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toMatch(/unknown flag --relese-id/);
+  });
+
+  it("rejects an extra positional argument with exit 2", () => {
+    const result = runCli(["record", "deployed", "EXTRA", "--ledger", "/dev/null"]);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toMatch(/too many positional arguments/);
+  });
+
+  it("rejects a duplicated flag with exit 2", () => {
+    const result = runCli(["status", "--ledger", "/dev/null", "--ledger", "/dev/null"]);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toMatch(/given more than once/);
+  });
+
+  it("rejects an unknown command even with --help, rather than treating --help as a bypass", () => {
+    const result = runCli(["unknown", "--help"]);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toMatch(/unknown command "unknown"/);
+  });
+
+  it("still honors --help for a known command (exit 0)", () => {
+    const result = runCli(["status", "--help"]);
+    expect(result.status).toBe(0);
+    expect(result.stdout).toMatch(/release-evidence status/);
   });
 });

@@ -145,6 +145,12 @@ export interface ReleaseEvent {
   reason?: string;
   /** deployed|production only, and only on a direct preview_verified -> production jump. */
   staging_skipped?: true;
+  /** deployed|production only, and only on a direct prepared -> production jump (no preview
+   * tier exists for this deploy target at all -- distinct from staging_skipped, which still
+   * has a preview tier). Requires preview_skipped_code; forbids staging_skipped alongside it
+   * (the jump skips staging too by definition, so one flag tells the whole story). */
+  preview_skipped?: true;
+  preview_skipped_code?: "no_preview_environment_scheduled_rebuild" | "other";
   /** attested only. */
   attestation?: Attestation;
   notes?: string;

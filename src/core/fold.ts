@@ -11,7 +11,12 @@ import { dedupe } from "./util.js";
 
 const GRAPH: Record<string, Record<string, string>> = {
   "(none)": { "prepared|null": "prepared" },
-  prepared: { "deployed|preview": "preview_deployed", "failed|preview": "failed" },
+  prepared: {
+    "deployed|preview": "preview_deployed",
+    "deployed|production": "production_deployed", // no preview tier for this deploy target (requires preview_skipped -- checked below)
+    "failed|preview": "failed",
+    "failed|production": "failed",
+  },
   preview_deployed: { "verified|preview": "preview_verified", "failed|preview": "failed" },
   preview_verified: {
     "deployed|staging": "staging_deployed",
@@ -95,16 +100,38 @@ export function foldAttempt(
     }
 
     if (key === "deployed|production") {
-      const direct = state === "preview_verified";
-      if (direct && ev.staging_skipped !== true) {
-        problems.push(
-          `staging_skip_unrecorded: event "${ev.event_id}" jumps preview_verified -> production without staging_skipped: true (D5: the skip FACT must be recorded on the event)`,
-        );
-      }
-      if (!direct && ev.staging_skipped === true) {
-        problems.push(
-          `staging_skip_misrecorded: event "${ev.event_id}" declares staging_skipped after state "${state}" -- staging was not skipped`,
-        );
+      if (state === "prepared") {
+        // No preview tier exists for this deploy target at all (the case the first real
+        // adapter exercise surfaced: a scheduled Pages rebuild has no preview environment).
+        // The jump skips staging too by definition, so staging_skipped is forbidden
+        // alongside it -- preview_skipped alone tells the whole story.
+        if (ev.preview_skipped !== true) {
+          problems.push(
+            `preview_skip_unrecorded: event "${ev.event_id}" jumps prepared -> production without preview_skipped: true (the skip FACT must be recorded on the event)`,
+          );
+        }
+        if (ev.staging_skipped === true) {
+          problems.push(
+            `staging_skip_misrecorded: event "${ev.event_id}" declares staging_skipped on a prepared -> production jump -- preview_skipped alone tells that story`,
+          );
+        }
+      } else {
+        if (ev.preview_skipped === true) {
+          problems.push(
+            `preview_skip_misrecorded: event "${ev.event_id}" declares preview_skipped after state "${state}" -- preview was not skipped`,
+          );
+        }
+        const direct = state === "preview_verified";
+        if (direct && ev.staging_skipped !== true) {
+          problems.push(
+            `staging_skip_unrecorded: event "${ev.event_id}" jumps preview_verified -> production without staging_skipped: true (D5: the skip FACT must be recorded on the event)`,
+          );
+        }
+        if (!direct && ev.staging_skipped === true) {
+          problems.push(
+            `staging_skip_misrecorded: event "${ev.event_id}" declares staging_skipped after state "${state}" -- staging was not skipped`,
+          );
+        }
       }
       reachedProduction = true;
     }

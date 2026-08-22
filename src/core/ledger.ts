@@ -1,11 +1,20 @@
-// Append-only JSONL release-events ledger. Two disciplines, same as this repo's other
-// finalize-style JSONL writers: (1) validate against schema BEFORE writing a line, never
-// after; (2) after appending, re-parse every line in the file, and if the result is broken,
-// restore the exact pre-append bytes rather than leaving a half-written file behind. Nothing
-// in this file ever rewrites or removes a past line -- corrections are new events, and current
-// state is always derived by folding (fold.ts), never stored here.
+// Append-only JSONL release-events ledger. Two disciplines: (1) validate against schema
+// BEFORE writing a line, never after; (2) the write itself is a single O_APPEND write of one
+// line, never a read-modify-write of the whole file. (2) is what makes concurrent appends
+// safe: two processes calling appendEvent on the same ledger at the same time both open with
+// O_APPEND and each does exactly one write() of its own line -- the kernel serializes those
+// writes without either process ever holding (and later overwriting) a stale copy of the
+// other's line in memory. A prior read-then-writeFileSync-the-whole-file design lost whichever
+// event lost the race, silently.
+//
+// There is deliberately no "restore on corruption after append" path anymore: a single
+// O_APPEND write of one line has no partial-file failure mode that read-modify-write did
+// (truncating the file mid-write). The remaining corruption case -- a ledger that was already
+// broken before this call, e.g. a torn trailing line from a process that died mid-write -- is
+// handled the same way it always was: readLedger() throws, and appendEvent refuses to touch a
+// ledger it can't fully re-parse, rather than silently extending a file it can't verify.
 
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import { validateEvent } from "./event.js";
 import type { ReleaseEvent } from "./types.js";
 
@@ -35,11 +44,12 @@ export interface AppendResult {
   event: ReleaseEvent;
 }
 
-/** Validates `event` against release-event.schema.json and appends it as one JSONL line.
- * Refuses to write anything if validation fails. Callers are responsible for checking
- * transition legality (fold.ts) and production gates (gates.ts) BEFORE calling this --
- * ledger.ts only enforces single-record schema validity and file integrity, not the state
- * machine. */
+/** Validates `event` against release-event.schema.json and appends it as one atomic JSONL
+ * line (O_APPEND, no read-modify-write). Refuses to write anything if validation fails, if the
+ * ledger is already unparseable, or if event_id collides with a DIFFERENT existing event.
+ * Callers are responsible for checking transition legality (fold.ts) and production gates
+ * (gates.ts) BEFORE calling this -- ledger.ts only enforces single-record schema validity,
+ * duplicate/conflict handling, and file integrity, not the state machine itself. */
 export function appendEvent(ledgerPath: string, event: ReleaseEvent): AppendResult {
   const reasons = validateEvent(event);
   if (reasons.length > 0) {
@@ -48,6 +58,8 @@ export function appendEvent(ledgerPath: string, event: ReleaseEvent): AppendResu
     );
   }
 
+  // Refuses a ledger it can't fully re-parse rather than silently extending it further --
+  // this read is also how an idempotent replay is detected before ever touching the file.
   const existing = readLedger(ledgerPath);
   const duplicate = existing.find((e) => e.event_id === event.event_id);
   if (duplicate) {
@@ -59,18 +71,7 @@ export function appendEvent(ledgerPath: string, event: ReleaseEvent): AppendResu
     return { appended: false, event: duplicate };
   }
 
-  const before = existsSync(ledgerPath) ? readFileSync(ledgerPath, "utf-8") : "";
-  const after = `${before}${JSON.stringify(event)}\n`;
-  writeFileSync(ledgerPath, after, "utf-8");
-
-  try {
-    readLedger(ledgerPath); // full re-parse verification
-  } catch (err) {
-    writeFileSync(ledgerPath, before, "utf-8"); // restore pre-append bytes
-    throw new Error(
-      `append produced an unparseable ledger; restored previous content. Cause: ${(err as Error).message}`,
-    );
-  }
+  appendFileSync(ledgerPath, `${JSON.stringify(event)}\n`, { encoding: "utf-8", flag: "a" });
 
   return { appended: true, event };
 }

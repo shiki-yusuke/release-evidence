@@ -48,13 +48,66 @@ describe("foldAttempt", () => {
     expect(result.problems).toEqual([]);
   });
 
-  it("rejects a direct production deploy before any preview (illegal_transition)", () => {
+  it("rejects a direct prepared -> production deploy that doesn't record preview_skipped", () => {
+    // Legal in principle (a deploy target can have no preview tier at all), but the skip
+    // FACT must be recorded -- an unmarked direct jump is still rejected.
     const events = [
       ev({ event_id: "1", kind: "prepared" }),
       ev({ event_id: "2", kind: "deployed", environment: "production" }),
     ];
     const result = foldAttempt("demo@1.0.0", DIGEST, events);
-    expect(result.problems[0]).toMatch(/^illegal_transition:/);
+    expect(result.problems[0]).toMatch(/^preview_skip_unrecorded:/);
+  });
+
+  it("allows a direct prepared -> production deploy when preview_skipped is recorded", () => {
+    const events = [
+      ev({ event_id: "1", kind: "prepared" }),
+      ev({
+        event_id: "2",
+        kind: "deployed",
+        environment: "production",
+        preview_skipped: true,
+        preview_skipped_code: "no_preview_environment_scheduled_rebuild",
+      }),
+    ];
+    const result = foldAttempt("demo@1.0.0", DIGEST, events);
+    expect(result.problems).toEqual([]);
+    expect(result.state).toBe("production_deployed");
+    expect(result.reachedProduction).toBe(true);
+  });
+
+  it("forbids staging_skipped alongside preview_skipped (one flag tells the whole story)", () => {
+    const events = [
+      ev({ event_id: "1", kind: "prepared" }),
+      ev({
+        event_id: "2",
+        kind: "deployed",
+        environment: "production",
+        preview_skipped: true,
+        preview_skipped_code: "other",
+        staging_skipped: true,
+      }),
+    ];
+    const result = foldAttempt("demo@1.0.0", DIGEST, events);
+    expect(result.problems[0]).toMatch(/^staging_skip_misrecorded:/);
+  });
+
+  it("forbids preview_skipped when preview actually happened", () => {
+    const events = [
+      ev({ event_id: "1", kind: "prepared" }),
+      ev({ event_id: "2", kind: "deployed", environment: "preview" }),
+      ev({ event_id: "3", kind: "verified", environment: "preview" }),
+      ev({
+        event_id: "4",
+        kind: "deployed",
+        environment: "production",
+        staging_skipped: true,
+        preview_skipped: true,
+        preview_skipped_code: "other",
+      }),
+    ];
+    const result = foldAttempt("demo@1.0.0", DIGEST, events);
+    expect(result.problems[0]).toMatch(/^preview_skip_misrecorded:/);
   });
 
   it("requires staging_skipped: true on a direct preview_verified -> production jump", () => {

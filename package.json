@@ -15,6 +15,11 @@
   "imports": {
     "#vendor/*": "./vendor/playbook-shared/*"
   },
+  "files": [
+    "dist",
+    "vendor/playbook-shared",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsc -b",
     "typecheck": "tsc -b",

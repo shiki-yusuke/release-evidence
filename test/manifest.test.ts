@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -62,6 +62,52 @@ describe("buildManifest", () => {
     symlinkSync(path.join(dir, "real.txt"), path.join(dir, "link.txt"));
 
     expect(() => buildManifest(dir)).toThrow(/symlink/);
+  });
+
+  it("throws when the root itself is a symlink", () => {
+    const real = mkdtempSync(path.join(tmpdir(), "release-evidence-manifest-real-"));
+    writeFileSync(path.join(real, "index.html"), "hi");
+    const linkRoot = path.join(dir, "site-link");
+    symlinkSync(real, linkRoot);
+
+    expect(() => buildManifest(linkRoot)).toThrow(/symlink/);
+
+    rmSync(real, { recursive: true, force: true });
+  });
+
+  it("does not silently drop a file literally named __proto__", () => {
+    writeFileSync(path.join(dir, "__proto__"), "gotcha");
+
+    const { manifest } = buildManifest(dir);
+
+    expect(Object.keys(manifest)).toEqual(["__proto__"]);
+    expect(manifest.__proto__).toBe(sha256("gotcha"));
+  });
+
+  it("rejects two files that canonicalize to the same NFC path (NFC/NFD collision)", () => {
+    // Two byte-different filenames that normalize to the identical NFC string: "e" +
+    // combining acute accent (U+0301, NFD) vs the single precomposed codepoint (NFC).
+    // Written explicitly from code points -- see the NFC-normalizes test above for why a
+    // literal in this file can't be trusted to stay in one normal form.
+    const nfd = "cafe\u0301.txt";
+    const nfc = nfd.normalize("NFC");
+    writeFileSync(path.join(dir, nfd), "one");
+    writeFileSync(path.join(dir, nfc), "two");
+
+    // Some filesystems (notably macOS APFS) treat NFC/NFD forms of the same name as the SAME
+    // directory entry -- the second write above then just overwrites the first rather than
+    // creating a second file, so there is nothing for buildManifest to collide on. The
+    // collision-rejection code path this test exercises still matters on filesystems that DO
+    // keep them as two distinct entries (most Linux filesystems, e.g. CI): only assert the
+    // throw when the filesystem actually gave us two entries to collide.
+    const entryCount = readdirSync(dir).length;
+    if (entryCount < 2) {
+      console.warn(
+        "this filesystem collapsed the NFC/NFD pair into one directory entry -- skipping the collision assertion here (nothing to collide on)",
+      );
+      return;
+    }
+    expect(() => buildManifest(dir)).toThrow(/canonicalize to the same path/);
   });
 
   it("computes a digest that is the sha256 of the manifest's JCS bytes, independent of key insertion order", async () => {
@@ -127,5 +173,76 @@ describe("writeReleaseManifest + readBackVerify", () => {
     const result = readBackVerify(dir);
     expect(result.ok).toBe(false);
     expect(result.problems[0]).toMatch(/cannot read/);
+  });
+
+  it("rejects a wrapper with the wrong schema_version even when content matches", () => {
+    const { manifest } = buildManifest(dir);
+    writeFileSync(
+      path.join(dir, "release-manifest.json"),
+      JSON.stringify({
+        schema_version: "something-else/v9",
+        bundle_digest: "sha256:".padEnd(71, "a"),
+        content: manifest,
+      }),
+    );
+
+    const result = readBackVerify(dir);
+
+    expect(result.ok).toBe(false);
+    expect(result.problems.some((p) => p.startsWith("schema_version_mismatch:"))).toBe(true);
+  });
+
+  it("rejects a malformed bundle_digest", () => {
+    const { manifest } = buildManifest(dir);
+    writeFileSync(
+      path.join(dir, "release-manifest.json"),
+      JSON.stringify({
+        schema_version: "release-evidence/v0",
+        bundle_digest: "not-a-digest",
+        content: manifest,
+      }),
+    );
+
+    const result = readBackVerify(dir);
+
+    expect(result.ok).toBe(false);
+    expect(result.problems.some((p) => p.startsWith("bundle_digest_malformed:"))).toBe(true);
+  });
+
+  it("rejects a bundle_digest that does not match the expected value", () => {
+    const { manifest } = buildManifest(dir);
+    const recorded = "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
+    const expected = "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
+    writeReleaseManifest(dir, recorded, manifest);
+
+    const result = readBackVerify(dir, expected);
+
+    expect(result.ok).toBe(false);
+    expect(result.problems.some((p) => p.startsWith("bundle_digest_mismatch:"))).toBe(true);
+  });
+
+  it("passes when the bundle_digest matches the expected value", () => {
+    const { manifest } = buildManifest(dir);
+    const digest = "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
+    writeReleaseManifest(dir, digest, manifest);
+
+    expect(readBackVerify(dir, digest).ok).toBe(true);
+  });
+
+  it("rejects content that isn't an object (null, array, or scalar)", () => {
+    const casesContent: unknown[] = [null, [], "not-an-object", 42];
+    for (const content of casesContent) {
+      writeFileSync(
+        path.join(dir, "release-manifest.json"),
+        JSON.stringify({
+          schema_version: "release-evidence/v0",
+          bundle_digest: `sha256:${"a".repeat(64)}`,
+          content,
+        }),
+      );
+      const result = readBackVerify(dir);
+      expect(result.ok).toBe(false);
+      expect(result.problems.some((p) => p.startsWith("content_not_an_object:"))).toBe(true);
+    }
   });
 });

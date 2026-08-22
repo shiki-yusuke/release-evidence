@@ -7,6 +7,11 @@
 // leaves the ledger untouched (ledger.ts's own schema check would refuse it anyway, but the
 // fold/gate check runs first so the failure reason is the actual state-machine violation, not
 // a generic schema error).
+//
+// Exit codes: 0 = success (or a clean audit/status). 2 = usage/input error (bad flags, unreadable
+// file, schema-invalid record, a --bundle that doesn't match --bundle-digest/--release-id).
+// 3 = the fold or a production gate rejected the transition -- the ledger is untouched. 1 =
+// `status`/`audit` ran successfully but found the ledger/collection itself unhealthy.
 
 import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
@@ -14,7 +19,7 @@ import { sha256hex } from "#vendor/jcs.mjs";
 import { bundleDigest as computeBundleDigest, validateBundle } from "../core/bundle.js";
 import { checkReleaseCollection } from "../core/collection.js";
 import { validateEvent } from "../core/event.js";
-import { foldAttempt, foldLedger } from "../core/fold.js";
+import { foldLedger } from "../core/fold.js";
 import { checkProductionGate } from "../core/gates.js";
 import { appendEvent, readLedger } from "../core/ledger.js";
 import type {
@@ -29,9 +34,11 @@ import { buildManifest } from "../manifest/manifest.js";
 
 type Flags = Record<string, string | boolean>;
 
-function parseArgs(argv: string[]): { positional: string[]; flags: Flags } {
+function parseArgs(argv: string[]): { positional: string[]; flags: Flags; repeated: string[] } {
   const positional: string[] = [];
   const flags: Flags = {};
+  const seen = new Set<string>();
+  const repeated: string[] = [];
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === undefined) continue;
@@ -40,11 +47,13 @@ function parseArgs(argv: string[]): { positional: string[]; flags: Flags } {
       continue;
     }
     const eq = arg.indexOf("=");
+    const name = eq !== -1 ? arg.slice(2, eq) : arg.slice(2);
+    if (seen.has(name)) repeated.push(name);
+    seen.add(name);
     if (eq !== -1) {
-      flags[arg.slice(2, eq)] = arg.slice(eq + 1);
+      flags[name] = arg.slice(eq + 1);
       continue;
     }
-    const name = arg.slice(2);
     const next = argv[i + 1];
     if (next !== undefined && !next.startsWith("--")) {
       flags[name] = next;
@@ -53,7 +62,7 @@ function parseArgs(argv: string[]): { positional: string[]; flags: Flags } {
       flags[name] = true;
     }
   }
-  return { positional, flags };
+  return { positional, flags, repeated };
 }
 
 function fail(message: string, code = 2): never {
@@ -95,16 +104,65 @@ const USAGE: Record<string, string> = {
   record:
     "release-evidence record <deployed|verified|failed|rolled-back|attest> --ledger <file> --release-id <id> --bundle-digest <sha256:...> " +
     "[--environment preview|staging|production] [--failure-phase deploy|verification|post_verification] [--reason <text>] " +
-    "[--rollback-to <release_id>] [--staging-skipped] [--attestation-digest <sha256:...>] [--bundle <file>] [--actor human|ci|cli]",
+    "[--rollback-to <release_id>] [--staging-skipped] " +
+    "[--preview-skipped --preview-skipped-code no_preview_environment_scheduled_rebuild|other] " +
+    "[--attestation-digest <sha256:...>] [--attestation-ref <ref>] " +
+    "[--bundle <file> (REQUIRED for `deployed --environment production`)] [--actor human|ci|cli]",
   status: "release-evidence status --ledger <file> [--release-id <id>]",
   audit: "release-evidence audit --ledger <file> --bundles <dir>",
   manifest: "release-evidence manifest <dir>",
 };
 
+/** Per-command allowlists -- an unrecognized flag or an extra positional argument is a usage
+ * error (exit 2), never silently ignored (a typo like --relese-id must not succeed). */
+const ALLOWED_FLAGS: Record<string, string[]> = {
+  prepare: ["bundle", "ledger", "actor", "help", "h"],
+  record: [
+    "ledger",
+    "release-id",
+    "bundle-digest",
+    "environment",
+    "failure-phase",
+    "reason",
+    "rollback-to",
+    "staging-skipped",
+    "preview-skipped",
+    "preview-skipped-code",
+    "attestation-digest",
+    "attestation-ref",
+    "bundle",
+    "actor",
+    "help",
+    "h",
+  ],
+  status: ["ledger", "release-id", "help", "h"],
+  audit: ["ledger", "bundles", "help", "h"],
+  manifest: ["help", "h"],
+};
+const MAX_POSITIONAL: Record<string, number> = {
+  prepare: 0,
+  record: 1,
+  status: 0,
+  audit: 0,
+  manifest: 1,
+};
+
+function assertAllowedArgs(cmd: string, flags: Flags, positional: string[]): void {
+  const allowed = new Set(ALLOWED_FLAGS[cmd] ?? []);
+  for (const key of Object.keys(flags)) {
+    if (!allowed.has(key)) fail(`unknown flag --${key} for "${cmd}"\n\nusage: ${USAGE[cmd]}`);
+  }
+  const max = MAX_POSITIONAL[cmd] ?? 0;
+  if (positional.length > max) {
+    fail(
+      `too many positional arguments for "${cmd}" (got ${positional.length}, expected at most ${max})\n\nusage: ${USAGE[cmd]}`,
+    );
+  }
+}
+
 function printHelp(cmd?: string): void {
   if (cmd) {
-    const usage = USAGE[cmd];
-    console.log(usage ?? `unknown command "${cmd}"`);
+    console.log(USAGE[cmd] ?? `unknown command "${cmd}"`);
     return;
   }
   console.log("release-evidence <command> [...]\n");
@@ -121,6 +179,49 @@ function printResultAndMaybeWarnIdempotent(
     console.error(
       `note: event_id "${event.event_id}" was already recorded verbatim -- no new line written (idempotent replay)`,
     );
+}
+
+/** Shared append pipeline for `prepare` and `record`: skip straight to ledger.appendEvent (its
+ * own idempotent/conflict handling applies) when this exact event_id was already recorded
+ * verbatim -- otherwise fold the FULL ledger (existing events + this candidate) and refuse
+ * (exit 3) if that's illegal anywhere, including ledger-wide checks a per-attempt fold can't
+ * see (duplicate event_id, a rolled_back target that never reached production). `gateCheck`,
+ * if given, runs after the fold passes and before the write -- also exit 3 on rejection. */
+function appendWithLedgerWideCheck(
+  ledgerPath: string,
+  event: ReleaseEvent,
+  gateCheck?: (priorAttemptEvents: ReleaseEvent[]) => string[],
+): { result: { appended: boolean; event: ReleaseEvent }; priorAttemptEvents: ReleaseEvent[] } {
+  const existingAll = readLedger(ledgerPath);
+  const priorAttemptEvents = existingAll.filter(
+    (e) => e.release_id === event.release_id && e.bundle_digest === event.bundle_digest,
+  );
+
+  const alreadyRecorded = existingAll.find((e) => e.event_id === event.event_id);
+  if (alreadyRecorded) {
+    // Not a new transition being applied -- let appendEvent's own idempotent/conflict
+    // handling decide (identical content -> no-op; different content -> throws, caught by
+    // main()'s top-level handler as exit 2).
+    return { result: appendEvent(ledgerPath, event), priorAttemptEvents };
+  }
+
+  const { problems } = foldLedger([...existingAll, event]);
+  if (problems.length > 0) {
+    console.error("illegal transition, refusing to append:");
+    for (const p of problems) console.error(`  - ${p}`);
+    process.exit(3);
+  }
+
+  if (gateCheck) {
+    const gateProblems = gateCheck(priorAttemptEvents);
+    if (gateProblems.length > 0) {
+      console.error("production gate rejected, refusing to append:");
+      for (const p of gateProblems) console.error(`  - ${p}`);
+      process.exit(3);
+    }
+  }
+
+  return { result: appendEvent(ledgerPath, event), priorAttemptEvents };
 }
 
 function cmdPrepare(flags: Flags): void {
@@ -149,20 +250,7 @@ function cmdPrepare(flags: Flags): void {
     bundle_digest: digest,
   };
 
-  const existingAttempt = readLedger(ledgerPath).filter(
-    (e) => e.release_id === event.release_id && e.bundle_digest === event.bundle_digest,
-  );
-  const { problems } = foldAttempt(event.release_id, event.bundle_digest, [
-    ...existingAttempt,
-    event,
-  ]);
-  if (problems.length > 0) {
-    console.error("illegal transition, refusing to append:");
-    for (const p of problems) console.error(`  - ${p}`);
-    process.exit(3);
-  }
-
-  const result = appendEvent(ledgerPath, event);
+  const { result } = appendWithLedgerWideCheck(ledgerPath, event);
   printResultAndMaybeWarnIdempotent(result.event, result.appended, { bundle_digest: digest });
 }
 
@@ -220,6 +308,15 @@ function cmdRecord(kindArg: string, flags: Flags): void {
     }
     event.staging_skipped = true;
   }
+  if (flags["preview-skipped"]) {
+    if (!(kind === "deployed" && environment === "production")) {
+      fail("--preview-skipped is only legal on `record deployed --environment production`");
+    }
+    event.preview_skipped = true;
+    event.preview_skipped_code = requireString(flags, "preview-skipped-code") as NonNullable<
+      ReleaseEvent["preview_skipped_code"]
+    >;
+  }
   if (kind === "attested") {
     event.attestation = {
       kind: "lane_done_overlay",
@@ -236,42 +333,41 @@ function cmdRecord(kindArg: string, flags: Flags): void {
     process.exit(2);
   }
 
-  const existingAll = readLedger(ledgerPath);
-  const existingAttempt = existingAll.filter(
-    (e) => e.release_id === releaseId && e.bundle_digest === bundleDigestValue,
-  );
-  const { problems: transitionProblems } = foldAttempt(releaseId, bundleDigestValue, [
-    ...existingAttempt,
-    event,
-  ]);
-  if (transitionProblems.length > 0) {
-    console.error("illegal transition, refusing to append:");
-    for (const p of transitionProblems) console.error(`  - ${p}`);
-    process.exit(3);
-  }
+  const isProductionDeploy = kind === "deployed" && environment === "production";
 
-  if (kind === "deployed" && environment === "production") {
-    // The production gate (lane_done_overlay attestation / review.decision) needs the real
-    // bundle, which `record`'s own flag set does not carry -- an optional --bundle lets a
-    // caller opt into the full check; without it we can only have verified the transition
-    // graph above, and we say so rather than silently skipping a check the protocol requires.
-    const bundlePath = optionalString(flags, "bundle");
-    if (bundlePath) {
-      const bundle = JSON.parse(readFileSync(bundlePath, "utf-8")) as Bundle;
-      const gateProblems = checkProductionGate(bundle, existingAttempt);
-      if (gateProblems.length > 0) {
-        console.error("production gate rejected, refusing to append:");
-        for (const p of gateProblems) console.error(`  - ${p}`);
-        process.exit(3);
-      }
-    } else {
-      console.error(
-        "warning: no --bundle given -- only the transition graph was checked; lane_done_overlay / review.decision production gates were NOT verified",
+  // A deploy to production REQUIRES the real bundle (no silent "gate not checked" path): the
+  // lane_done_overlay / review.decision gates cannot be evaluated without it. --bundle-digest
+  // alone is a claim; --bundle is the evidence that claim is checked against.
+  let productionBundle: Bundle | undefined;
+  if (isProductionDeploy) {
+    const bundlePath = requireString(flags, "bundle");
+    productionBundle = JSON.parse(readFileSync(bundlePath, "utf-8")) as Bundle;
+    const bundleReasons = validateBundle(productionBundle);
+    if (bundleReasons.length > 0) {
+      console.error(`--bundle "${bundlePath}" failed validation:`);
+      for (const r of bundleReasons) console.error(`  - ${r}`);
+      process.exit(2);
+    }
+    const actualDigest = computeBundleDigest(productionBundle);
+    if (actualDigest !== bundleDigestValue) {
+      fail(
+        `--bundle "${bundlePath}" has JCS digest ${actualDigest}, which does not match --bundle-digest ${bundleDigestValue}`,
+      );
+    }
+    if (productionBundle.release_id !== releaseId) {
+      fail(
+        `--bundle "${bundlePath}" has release_id "${productionBundle.release_id}", which does not match --release-id "${releaseId}"`,
       );
     }
   }
 
-  const result = appendEvent(ledgerPath, event);
+  const { result } = appendWithLedgerWideCheck(
+    ledgerPath,
+    event,
+    isProductionDeploy && productionBundle
+      ? (priorAttemptEvents) => checkProductionGate(productionBundle as Bundle, priorAttemptEvents)
+      : undefined,
+  );
   printResultAndMaybeWarnIdempotent(result.event, result.appended);
 }
 
@@ -279,21 +375,48 @@ function cmdStatus(flags: Flags): void {
   const ledgerPath = requireString(flags, "ledger");
   const releaseIdFilter = optionalString(flags, "release-id");
   const events = readLedger(ledgerPath);
-  const filtered = releaseIdFilter
-    ? events.filter((e) => e.release_id === releaseIdFilter)
-    : events;
 
-  const { attempts, problems } = foldLedger(filtered);
-  const attemptSummaries = [...attempts.entries()].map(([key, result]) => {
-    const spaceIdx = key.indexOf(" ");
-    return {
-      release_id: key.slice(0, spaceIdx),
-      bundle_digest: key.slice(spaceIdx + 1),
-      state: result.state,
-      reached_production: result.reachedProduction,
-      problems: result.problems,
-    };
+  // A contract-violating line must not be silently folded (it could produce a misleading
+  // "illegal_transition" instead of the real problem: this ledger has a record that was never
+  // legal in the first place).
+  const schemaProblems: string[] = [];
+  events.forEach((ev, i) => {
+    const reasons = validateEvent(ev);
+    if (reasons.length > 0) {
+      const eventId =
+        typeof (ev as { event_id?: unknown }).event_id === "string"
+          ? (ev as ReleaseEvent).event_id
+          : "?";
+      schemaProblems.push(
+        `line ${i + 1} (event_id ${JSON.stringify(eventId)}) violates release-event.schema.json: ${reasons.join("; ")}`,
+      );
+    }
   });
+  if (schemaProblems.length > 0) {
+    console.error("ledger contains contract-violating line(s), refusing to fold:");
+    for (const p of schemaProblems) console.error(`  - ${p}`);
+    process.exit(2);
+  }
+
+  // Folded over the WHOLE ledger, unfiltered: a rollback's "did the target reach production
+  // earlier" check needs every attempt in scope, not just the ones matching --release-id, or
+  // a legitimate rollback would false-positive as dangling once filtered down.
+  const { attempts, problems } = foldLedger(events);
+  const attemptSummaries = [...attempts.entries()]
+    .filter(([key]) => {
+      if (!releaseIdFilter) return true;
+      return key.slice(0, key.indexOf(" ")) === releaseIdFilter;
+    })
+    .map(([key, result]) => {
+      const spaceIdx = key.indexOf(" ");
+      return {
+        release_id: key.slice(0, spaceIdx),
+        bundle_digest: key.slice(spaceIdx + 1),
+        state: result.state,
+        reached_production: result.reachedProduction,
+        problems: result.problems,
+      };
+    });
 
   console.log(JSON.stringify({ attempts: attemptSummaries, ledger_problems: problems }, null, 2));
   if (problems.length > 0 || attemptSummaries.some((a) => a.problems.length > 0)) process.exit(1);
@@ -328,16 +451,25 @@ function cmdManifest(dir: string): void {
 
 function main(): void {
   const [, , cmd, ...rest] = process.argv;
-  const { positional, flags } = parseArgs(rest);
+  const { positional, flags, repeated } = parseArgs(rest);
 
   if (!cmd) {
     printHelp();
     process.exit(2);
   }
+  if (!(cmd in USAGE)) {
+    console.error(`unknown command "${cmd}"\n`);
+    printHelp();
+    process.exit(2);
+  }
+  if (repeated.length > 0) {
+    fail(`flag --${repeated[0]} was given more than once`);
+  }
   if (flags.help || flags.h) {
     printHelp(cmd);
     process.exit(0);
   }
+  assertAllowedArgs(cmd, flags, positional);
 
   switch (cmd) {
     case "prepare":
@@ -362,7 +494,7 @@ function main(): void {
       return;
     }
     default:
-      fail(`unknown command "${cmd}"\n\n${USAGE[cmd] ?? ""}`);
+      fail(`unknown command "${cmd}"`);
   }
 }
 
