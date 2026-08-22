@@ -5,12 +5,16 @@
   "description": "Deployment state machine v1 (D5): Release Evidence Bundle assembly, append-only release-event ledger, and deploy adapters. Implements the release-evidence/v0 contract owned by ai-agent-skills-playbook.",
   "type": "module",
   "license": "MIT",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "packageManager": "pnpm@10.28.2",
-  "bin": { "release-evidence": "./dist/src/cli/main.js" },
+  "bin": {
+    "release-evidence": "./dist/src/cli/main.js"
+  },
   "scripts": {
     "build": "tsc -b",
-    "typecheck": "tsc -b --noEmit false --dry false || tsc -b",
+    "typecheck": "tsc -b",
     "test": "vitest run",
     "lint": "biome check .",
     "lint:fix": "biome check --write ."
