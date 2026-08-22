@@ -1,6 +1,6 @@
 {
   "name": "release-evidence",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "description": "Deployment state machine v1 (D5): Release Evidence Bundle assembly, append-only release-event ledger, and deploy adapters. Implements the release-evidence/v0 contract owned by ai-agent-skills-playbook.",
   "type": "module",
