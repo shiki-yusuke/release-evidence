@@ -30,7 +30,7 @@ import type {
   FailurePhase,
   ReleaseEvent,
 } from "../core/types.js";
-import { buildManifest } from "../manifest/manifest.js";
+import { buildManifest, readBackVerify, writeReleaseManifest } from "../manifest/manifest.js";
 
 type Flags = Record<string, string | boolean>;
 
@@ -110,7 +110,7 @@ const USAGE: Record<string, string> = {
     "[--bundle <file> (REQUIRED for `deployed --environment production`)] [--actor human|ci|cli]",
   status: "release-evidence status --ledger <file> [--release-id <id>]",
   audit: "release-evidence audit --ledger <file> --bundles <dir>",
-  manifest: "release-evidence manifest <dir>",
+  manifest: "release-evidence manifest <dir> [--write]",
 };
 
 /** Per-command allowlists -- an unrecognized flag or an extra positional argument is a usage
@@ -137,7 +137,7 @@ const ALLOWED_FLAGS: Record<string, string[]> = {
   ],
   status: ["ledger", "release-id", "help", "h"],
   audit: ["ledger", "bundles", "help", "h"],
-  manifest: ["help", "h"],
+  manifest: ["help", "h", "write"],
 };
 const MAX_POSITIONAL: Record<string, number> = {
   prepare: 0,
@@ -444,8 +444,28 @@ function cmdAudit(flags: Flags): void {
   process.exit(1);
 }
 
-function cmdManifest(dir: string): void {
+function cmdManifest(dir: string, write: boolean): void {
   const { manifest, digest } = buildManifest(dir);
+  if (write) {
+    // adapter の1コマンド経路: manifest を計測し、release-manifest.json を site に書き、
+    // bundle の artifacts[] に必要な2つの digest (content root / file bytes) を両方返す。
+    // 書き込み後に read-back で round-trip を自己確認する (書けたつもりを作らない)。
+    const written = writeReleaseManifest(dir, manifest);
+    const back = readBackVerify(dir, digest);
+    if (!back.ok) {
+      console.error("release-manifest.json round-trip failed immediately after write:");
+      for (const r of back.problems) console.error(`  - ${r}`);
+      process.exit(1);
+    }
+    console.log(
+      JSON.stringify(
+        { digest, content_manifest_digest: written.digest, path: written.path },
+        null,
+        2,
+      ),
+    );
+    return;
+  }
   console.log(JSON.stringify({ digest, manifest }, null, 2));
 }
 
@@ -490,7 +510,7 @@ function main(): void {
     case "manifest": {
       const dir = positional[0];
       if (!dir) fail(`usage: ${USAGE.manifest}`);
-      cmdManifest(dir);
+      cmdManifest(dir, flags.write === true);
       return;
     }
     default:
