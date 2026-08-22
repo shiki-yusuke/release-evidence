@@ -137,25 +137,22 @@ describe("writeReleaseManifest + readBackVerify", () => {
   });
 
   it("round-trips: what's written verifies clean, and its own digest is stable", () => {
-    const { manifest } = buildManifest(dir);
-    const bundleDigest = "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
-    const written = writeReleaseManifest(dir, bundleDigest, manifest);
+    const built = buildManifest(dir);
+    const written = writeReleaseManifest(dir, built.manifest);
 
     const result = readBackVerify(dir);
 
     expect(result.ok).toBe(true);
     expect(result.problems).toEqual([]);
     expect(result.contentManifestDigest).toBe(written.digest);
-    expect(result.bundleDigest).toBe(bundleDigest);
+    // contentDigest is JCS-sha256(content) -- must equal buildManifest's own digest for the
+    // exact same file set (this IS the value a static_site artifact's `digest` should carry).
+    expect(result.contentDigest).toBe(built.digest);
   });
 
   it("detects drift when a file changes on disk after the manifest was written", () => {
     const { manifest } = buildManifest(dir);
-    writeReleaseManifest(
-      dir,
-      "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
-      manifest,
-    );
+    writeReleaseManifest(dir, manifest);
 
     writeFileSync(path.join(dir, "index.html"), "<html>tampered</html>");
 
@@ -179,11 +176,7 @@ describe("writeReleaseManifest + readBackVerify", () => {
     const { manifest } = buildManifest(dir);
     writeFileSync(
       path.join(dir, "release-manifest.json"),
-      JSON.stringify({
-        schema_version: "something-else/v9",
-        bundle_digest: "sha256:".padEnd(71, "a"),
-        content: manifest,
-      }),
+      JSON.stringify({ schema_version: "something-else/v9", content: manifest }),
     );
 
     const result = readBackVerify(dir);
@@ -192,13 +185,13 @@ describe("writeReleaseManifest + readBackVerify", () => {
     expect(result.problems.some((p) => p.startsWith("schema_version_mismatch:"))).toBe(true);
   });
 
-  it("rejects a malformed bundle_digest", () => {
+  it("rejects the old bundle_digest-embedding format outright (playbook PR #13 removed it)", () => {
     const { manifest } = buildManifest(dir);
     writeFileSync(
       path.join(dir, "release-manifest.json"),
       JSON.stringify({
         schema_version: "release-evidence/v0",
-        bundle_digest: "not-a-digest",
+        bundle_digest: `sha256:${"a".repeat(64)}`,
         content: manifest,
       }),
     );
@@ -206,27 +199,46 @@ describe("writeReleaseManifest + readBackVerify", () => {
     const result = readBackVerify(dir);
 
     expect(result.ok).toBe(false);
-    expect(result.problems.some((p) => p.startsWith("bundle_digest_malformed:"))).toBe(true);
+    expect(
+      result.problems.some(
+        (p) => p.startsWith("unknown_wrapper_key:") && p.includes("bundle_digest"),
+      ),
+    ).toBe(true);
   });
 
-  it("rejects a bundle_digest that does not match the expected value", () => {
+  it("rejects any other unexpected top-level key too", () => {
     const { manifest } = buildManifest(dir);
-    const recorded = "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
-    const expected = "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
-    writeReleaseManifest(dir, recorded, manifest);
+    writeFileSync(
+      path.join(dir, "release-manifest.json"),
+      JSON.stringify({ schema_version: "release-evidence/v0", content: manifest, extra: "nope" }),
+    );
+
+    const result = readBackVerify(dir);
+
+    expect(result.ok).toBe(false);
+    expect(
+      result.problems.some((p) => p.startsWith("unknown_wrapper_key:") && p.includes("extra")),
+    ).toBe(true);
+  });
+
+  it("rejects a content digest that does not match the expected value", () => {
+    const { manifest } = buildManifest(dir);
+    const expected = "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"; // deliberately wrong
+    writeReleaseManifest(dir, manifest);
 
     const result = readBackVerify(dir, expected);
 
     expect(result.ok).toBe(false);
-    expect(result.problems.some((p) => p.startsWith("bundle_digest_mismatch:"))).toBe(true);
+    expect(result.problems.some((p) => p.startsWith("expected_content_digest_mismatch:"))).toBe(
+      true,
+    );
   });
 
-  it("passes when the bundle_digest matches the expected value", () => {
-    const { manifest } = buildManifest(dir);
-    const digest = "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
-    writeReleaseManifest(dir, digest, manifest);
+  it("passes when the content digest matches the expected value", () => {
+    const built = buildManifest(dir);
+    writeReleaseManifest(dir, built.manifest);
 
-    expect(readBackVerify(dir, digest).ok).toBe(true);
+    expect(readBackVerify(dir, built.digest).ok).toBe(true);
   });
 
   it("rejects content that isn't an object (null, array, or scalar)", () => {
@@ -234,11 +246,7 @@ describe("writeReleaseManifest + readBackVerify", () => {
     for (const content of casesContent) {
       writeFileSync(
         path.join(dir, "release-manifest.json"),
-        JSON.stringify({
-          schema_version: "release-evidence/v0",
-          bundle_digest: `sha256:${"a".repeat(64)}`,
-          content,
-        }),
+        JSON.stringify({ schema_version: "release-evidence/v0", content }),
       );
       const result = readBackVerify(dir);
       expect(result.ok).toBe(false);

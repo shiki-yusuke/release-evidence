@@ -97,15 +97,15 @@ export interface WriteManifestResult {
 }
 
 /** Writes release-manifest.json into `dir` in the form the protocol requires deploy adapters
- * to place into the site: {schema_version, bundle_digest, content}. */
-export function writeReleaseManifest(
-  dir: string,
-  bundleDigest: string,
-  manifest: ContentManifest,
-): WriteManifestResult {
+ * to place into the site: {schema_version, content} ONLY. bundle_digest is deliberately NOT
+ * embedded: the bundle carries this file's digest (content_manifest_digest), so embedding the
+ * bundle's digest here would make the two mutually referential and neither computable -- the
+ * circularity the first real adapter assembly exposed (playbook PR #13, 2026-08-22). The
+ * site<->bundle linkage is re-derived at read-back: JCS-sha256 of `content` must equal the
+ * bundle's artifacts[].digest. */
+export function writeReleaseManifest(dir: string, manifest: ContentManifest): WriteManifestResult {
   const body = {
     schema_version: "release-evidence/v0",
-    bundle_digest: bundleDigest,
     content: manifest,
   };
   const bytes = Buffer.from(`${JSON.stringify(body, null, 2)}\n`, "utf-8");
@@ -117,25 +117,35 @@ export function writeReleaseManifest(
 export interface ReadBackVerifyResult {
   ok: boolean;
   problems: string[];
-  /** sha256 of the release-manifest.json bytes as read back, or null if it could not be read. */
+  /** sha256 of the release-manifest.json bytes as read back, or null if it could not be read.
+   * This is the artifact's `content_manifest_digest`. */
   contentManifestDigest: string | null;
-  bundleDigest: string | null;
+  /** JCS-sha256 of the wrapper's `content` field, or null if `content` isn't a usable object.
+   * This is what must equal a static_site artifact's `digest` -- the site<->bundle linkage the
+   * old (circular) format tried to embed directly is instead re-derived here and left for the
+   * caller to cross-check against the real bundle via `expectedContentDigest`. */
+  contentDigest: string | null;
 }
 
 const WRAPPER_SCHEMA_VERSION = "release-evidence/v0";
-const BUNDLE_DIGEST_PATTERN = /^sha256:[0-9a-f]{64}$/;
+/** {schema_version, content} ONLY -- no bundle_digest. A file carrying it is the pre-PR#13
+ * circularly-defined format, and readBackVerify() must not silently accept it as a stricter
+ * "content still happens to match" pass; that would keep validating a shape the protocol no
+ * longer defines. */
+const ALLOWED_WRAPPER_KEYS = new Set(["schema_version", "content"]);
 
 /** Path-only read-back verification (the URL-fetch variant is left for the first real deploy
  * adapter, per the task's scope note): reads dir/release-manifest.json back off disk and
- * checks it two ways -- (1) the WRAPPER itself is well-formed (schema_version is the expected
- * const, bundle_digest has the right shape and, if `expectedBundleDigest` is given, matches
- * it, and `content` is actually an object) before trusting anything inside it, then (2) the
- * recorded `content` against a manifest rebuilt directly from the files present in `dir` right
- * now -- the same "digest is checked against the real bundle" discipline the protocol applies
- * to release events, applied here to a deployed site. A wrapper that merely happens to have a
- * matching `content` but a wrong/missing schema_version or bundle_digest is NOT a pass: it
- * proves nothing about which release this site's manifest actually belongs to. */
-export function readBackVerify(dir: string, expectedBundleDigest?: string): ReadBackVerifyResult {
+ * checks it three ways -- (1) the WRAPPER itself is well-formed: no keys beyond
+ * {schema_version, content} (rejects the old bundle_digest-embedding format outright),
+ * schema_version is the expected const, and `content` is actually an object; (2) if
+ * `expectedContentDigest` is given (normally the bundle's artifacts[].digest for this
+ * static_site artifact), the wrapper's own JCS-sha256(content) must equal it -- this is the
+ * cross-record check that replaces the old embedded bundle_digest, done by RECOMPUTING rather
+ * than trusting a stored value (sol must-2's discipline, applied here); (3) the recorded
+ * `content` against a manifest rebuilt directly from the files present in `dir` right now, to
+ * catch drift between what was written and what's actually deployed. */
+export function readBackVerify(dir: string, expectedContentDigest?: string): ReadBackVerifyResult {
   const manifestPath = path.join(dir, MANIFEST_FILENAME);
 
   let bytes: Buffer;
@@ -146,7 +156,7 @@ export function readBackVerify(dir: string, expectedBundleDigest?: string): Read
       ok: false,
       problems: [`cannot read ${manifestPath}: ${(err as Error).message}`],
       contentManifestDigest: null,
-      bundleDigest: null,
+      contentDigest: null,
     };
   }
   const contentManifestDigest = `sha256:${sha256hex(bytes)}`;
@@ -159,7 +169,7 @@ export function readBackVerify(dir: string, expectedBundleDigest?: string): Read
       ok: false,
       problems: [`${manifestPath} is not valid JSON: ${(err as Error).message}`],
       contentManifestDigest,
-      bundleDigest: null,
+      contentDigest: null,
     };
   }
 
@@ -168,35 +178,24 @@ export function readBackVerify(dir: string, expectedBundleDigest?: string): Read
       ok: false,
       problems: [`${manifestPath} does not contain a JSON object at the top level`],
       contentManifestDigest,
-      bundleDigest: null,
+      contentDigest: null,
     };
   }
-  const wrapper = parsed as {
-    schema_version?: unknown;
-    bundle_digest?: unknown;
-    content?: unknown;
-  };
+  const wrapper = parsed as Record<string, unknown>;
   const problems: string[] = [];
+
+  const unknownKeys = Object.keys(wrapper).filter((k) => !ALLOWED_WRAPPER_KEYS.has(k));
+  if (unknownKeys.length > 0) {
+    problems.push(
+      `unknown_wrapper_key: release-manifest.json has unexpected key(s) ${unknownKeys.map((k) => JSON.stringify(k)).join(", ")} -- the current format is {schema_version, content} only; a bundle_digest here is the old, circularly-defined format (playbook PR #13 removed it)`,
+    );
+  }
 
   if (wrapper.schema_version !== WRAPPER_SCHEMA_VERSION) {
     problems.push(
       `schema_version_mismatch: expected ${JSON.stringify(WRAPPER_SCHEMA_VERSION)}, got ${JSON.stringify(wrapper.schema_version)}`,
     );
   }
-
-  const bundleDigestIsWellFormed =
-    typeof wrapper.bundle_digest === "string" && BUNDLE_DIGEST_PATTERN.test(wrapper.bundle_digest);
-  if (!bundleDigestIsWellFormed) {
-    problems.push(
-      `bundle_digest_malformed: ${JSON.stringify(wrapper.bundle_digest)} is not a "sha256:<64 hex>" digest`,
-    );
-  } else if (expectedBundleDigest !== undefined && wrapper.bundle_digest !== expectedBundleDigest) {
-    problems.push(
-      `bundle_digest_mismatch: release-manifest.json records ${wrapper.bundle_digest}, expected ${expectedBundleDigest}`,
-    );
-  }
-  const bundleDigestValue =
-    typeof wrapper.bundle_digest === "string" ? wrapper.bundle_digest : null;
 
   const contentIsObject =
     wrapper.content !== null &&
@@ -208,14 +207,21 @@ export function readBackVerify(dir: string, expectedBundleDigest?: string): Read
     );
   }
 
+  let contentDigest: string | null = null;
   if (contentIsObject) {
     const recorded = wrapper.content as ContentManifest;
-    const rebuilt = buildManifest(dir);
+    contentDigest = `sha256:${sha256hex(canonicalize(recorded))}`;
 
-    const recordedDigest = `sha256:${sha256hex(canonicalize(recorded))}`;
-    if (recordedDigest !== rebuilt.digest) {
+    if (expectedContentDigest !== undefined && contentDigest !== expectedContentDigest) {
       problems.push(
-        `content_digest_mismatch: release-manifest.json's recorded content (${recordedDigest}) does not match the manifest rebuilt from disk (${rebuilt.digest})`,
+        `expected_content_digest_mismatch: content's JCS-sha256 (${contentDigest}) does not match the expected artifact digest (${expectedContentDigest})`,
+      );
+    }
+
+    const rebuilt = buildManifest(dir);
+    if (contentDigest !== rebuilt.digest) {
+      problems.push(
+        `content_digest_mismatch: release-manifest.json's recorded content (${contentDigest}) does not match the manifest rebuilt from disk (${rebuilt.digest})`,
       );
     }
 
@@ -236,10 +242,5 @@ export function readBackVerify(dir: string, expectedBundleDigest?: string): Read
     }
   }
 
-  return {
-    ok: problems.length === 0,
-    problems,
-    contentManifestDigest,
-    bundleDigest: bundleDigestValue,
-  };
+  return { ok: problems.length === 0, problems, contentManifestDigest, contentDigest };
 }
