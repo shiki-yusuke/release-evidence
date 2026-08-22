@@ -7,8 +7,8 @@
   },
   "files": {
     "ignoreUnknown": true,
-    "include": ["packages/**/*.ts"],
-    "ignore": ["packages/**/dist/**", "packages/**/generated/**"]
+    "include": ["src/**/*.ts", "test/**/*.ts"],
+    "ignore": ["dist/**"]
   },
   "formatter": {
     "enabled": true,

@@ -12,6 +12,9 @@
   "bin": {
     "release-evidence": "./dist/src/cli/main.js"
   },
+  "imports": {
+    "#vendor/*": "./vendor/playbook-shared/*"
+  },
   "scripts": {
     "build": "tsc -b",
     "typecheck": "tsc -b",
