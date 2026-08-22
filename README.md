@@ -1,9 +1,13 @@
 # release-evidence
 
-> **Status: pre-release scaffold.** The contract this repo implements
+> **Status: exercised against a real deployment.** The contract this repo implements
 > ([`release-evidence/v0`](https://github.com/shiki-yusuke/ai-agent-skills-playbook/tree/main/contracts/release-evidence/v0))
-> is itself a DRAFT; v1 of the contract freezes only after this repo's first deploy adapter has
-> been exercised against a real deployment.
+> is **FROZEN** (2026-08-22): the freeze gate was this repo's GitHub Pages adapter shipping the
+> [agent-metrics dashboard](https://shiki-yusuke.github.io/agent-metrics-harvester/)'s real
+> production deploy, whose live `release-manifest.json` content digest was independently
+> recomputed and matched the sealed bundle. That deploy's ledger and verbatim bundle live in
+> agent-metrics-harvester's `metrics-data` branch (and, as fixtures, in the contract itself).
+> The dashboard workflow now records evidence on every scheduled run.
 
 Deployment state machine v1 (the platform design's **D5**):
 
