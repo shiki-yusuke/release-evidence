@@ -2,12 +2,18 @@
 // minLength, minimum, exclusiveMinimum, exclusiveMaximum, maxItems, minItems, uniqueItems,
 // required, properties, additionalProperties (boolean `false`, closing an object, or a schema,
 // applied to every instance property not named in `properties` -- e.g. a session_id-keyed
-// dictionary), items, allOf, if/then/else, not, and $ref (to a
+// dictionary), items, allOf, if/then/else, not, oneOf, and $ref (to a
 // sibling schema file, or to a local #/$defs/... pointer). Extracted out
 // of contracts/agent-metrics/v1/verify-fixtures.mjs so every contract's verify script shares
 // one implementation instead of re-implementing it. This is exactly the subset this repo's
 // schemas use -- it is not a general draft 2020-12 implementation, and does not replace a
 // real validator (e.g. ajv) for schemas outside this repo.
+//
+// `oneOf` was added 2026-08-23 (I-2026-08-23-shared-validator-oneof, sol architect review):
+// before this, a property whose schema was `{"oneOf": [...]}` with no sibling allOf/if-then
+// enforcement -- release-evidence-bundle.schema.json's `lane_ref` and `review` were the only two
+// such properties in any schema this repo owns -- accepted ANY value, because `oneOf` was silently
+// ignored. See contracts/shared/schema-validator.selftest.mjs for the regression this closes.
 //
 // Usage: const { validate } = createValidator(schemaDir); validate("some.schema.json", instance)
 // `schemaDir` is the directory $ref filenames are resolved relative to (normally the calling
@@ -88,6 +94,23 @@ export function createValidator(schemaDir) {
       validateAgainst(schema.not, instance, currentDoc, pathStr, notErrors);
       if (notErrors.length === 0) {
         errors.push(`${pathStr}: instance must not validate against the "not" schema, but it does`);
+      }
+    }
+    // `oneOf`: the instance must validate against EXACTLY ONE of the listed subschemas -- zero
+    // matches and two-or-more matches are both invalid. Each branch is trialed into its OWN
+    // isolated error list, same discipline as `if`/`not` above, so a non-matching branch's
+    // errors never leak into the caller's `errors`; only the count of clean (zero-error) trials
+    // decides the verdict. Composes with every other keyword on the same schema object -- does
+    // not return early, same discipline as `allOf` above -- and each branch is evaluated with the
+    // SAME `currentDoc`, so a `$ref` inside a branch resolves exactly as it would outside one.
+    if (schema.oneOf) {
+      const matched = schema.oneOf.filter((sub) => {
+        const branchErrors = [];
+        validateAgainst(sub, instance, currentDoc, pathStr, branchErrors);
+        return branchErrors.length === 0;
+      }).length;
+      if (matched !== 1) {
+        errors.push(`${pathStr}: oneOf expected exactly one subschema to match, matched ${matched}`);
       }
     }
     if (schema.const !== undefined && instance !== schema.const) {

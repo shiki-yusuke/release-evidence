@@ -11,15 +11,22 @@ import path で直接参照しない（相対 import で他 repo のファイル
 ## 取得元
 
 - repo: https://github.com/shiki-yusuke/ai-agent-skills-playbook
-- commit: `581ad9db626687a50de67d0a22119e64733c71f1`
-- 取得日: 2026-08-22
+- commit: `a8817f9e4fd8f05c1ef8582fc36341e7aed3f649` (merge of PR #18 "feat/shared-validator-oneof"; upstream `main` の ancestor であることを `git merge-base --is-ancestor` で確認済み)
+- 取得日: 2026-08-23
+
+前回 pin (`581ad9db626687a50de67d0a22119e64733c71f1`, 2026-08-22) からの差分は
+`schema-validator.mjs` の oneOf 評価追加のみ (upstream I-2026-08-23-shared-validator-oneof)。
+oneOf 未評価の間、release-evidence-bundle.schema.json の `lane_ref` / `review` は任意の値を
+素通ししていた (このリポジトリの validateBundle() がまさにその schema を検証する)。
+`jcs.mjs` / `personal-dimensions.mjs` は両 commit 間で byte 一致 (git diff --quiet で確認)。
+export 形状は不変のため `schema-validator.d.mts` の変更は不要。
 
 ## ファイルと sha256
 
 | file | source path | sha256 |
 |---|---|---|
 | `jcs.mjs` | `contracts/shared/jcs.mjs` | `d63d711b9c8e3b9ecf7be0733c29518fa25cf1307470f88c42379e043638db13` |
-| `schema-validator.mjs` | `contracts/shared/schema-validator.mjs` | `cd45530bfdcd74dc42ba9d13e533bc76a4a4ebe725e30fcf46ddd93e9a05e52e` |
+| `schema-validator.mjs` | `contracts/shared/schema-validator.mjs` | `b48121a2b744ce924442df9a14d65d703b70c49da51d17966bc924586d5a8367` |
 | `personal-dimensions.mjs` | `contracts/shared/personal-dimensions.mjs` | `0bae6135d71be21abc61f8a0b3823cb97e38c94a066dd9a921099e3240b8159d` |
 
 `types.d.ts` はこのリポジトリ独自の追加物（vendored ファイルではない）: 上記 3 ファイルは
