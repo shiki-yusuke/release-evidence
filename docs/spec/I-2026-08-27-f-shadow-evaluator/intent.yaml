@@ -1,0 +1,56 @@
+schema_version: "1.0"
+intent_id: I-2026-08-27-f-shadow-evaluator
+execution_mode: manual
+budget: []
+intent:
+  business_goal: "Evidence-Closed Delivery F: promotion-receipt を決定論評価する shadow
+    評価器（release-evidence-shadow）を offline replay 専用で実装し、cohort-2 完了後の live
+    導入の前提を作る"
+  user_visible_intent: release-evidence に独立 bin release-evidence-shadow
+    を追加（shadow_only、gate しない、記録のみ）
+  success:
+    - release-evidence-shadow replay が実 release corpus に対して決定論的に走る（同一入力を別プロセスで2回実行し出力 byte 一致）
+    - pre_promotion 述語6種すべてが実装され、解決できない場合は明示的 unknown + closed reason code になる（黙って satisfied にしない）
+    - shadow 出力自身が evidence-closed（input_manifest digest と record_digest を pipeline 外の独立再計算で検証できる）
+    - live 化の構造的防止が機械検証される（mode=shadow_only / verdict による非0 exit なし / cohort-2-live-lock.json 有効時に deploy・gate 系から shadow module への import が1件でもあればテストが fail）
+    - conformance parity（vendored 契約 fixtures）+ 改ざん注入 + 決定論の3系統のテストが全部 green
+  non_goal: []
+  constraints: []
+  primary_user: release engineer (shiki-yusuke)
+  state_segments: []
+  known_affected_behavior: []
+  declared_risk: medium
+ai_inferred_scope:
+  affected_layers:
+    - cli
+    - core
+  related_files: []
+  required_docs: []
+  confidence: low
+  open_questions: []
+  allowed_paths:
+    - src/shadow/**
+    - src/shadow-cli/**
+    - test/**
+    - docs/**
+    - package.json
+    - pnpm-lock.yaml
+    - cohort-2-live-lock.json
+    - .github/workflows/**
+  forbidden_paths: []
+
+premise_evidence:
+  required: true
+  method: data
+  reproduced: true
+  evidence: "契約3種（review-findings/v1 / promotion-receipt/v0 / release-approval/v0）は playbook に merge 済み（PR #17、post-rewrite main f9f0c12 系）。offline replay（2026-08-23）で代表5 release×6述語の判定が実データで実施済みで unknown_structural は 0 件。sol 設計レビュー（2026-08-27、~/ai_bus/logs/sol-f-evaluator-design-20260827.log）が配置・I/O・unknown 分類・決定論・テスト・live ロックの6論点を裁定済み"
+# premise_evidence:            # <- record this at Phase 1 (gate 1), before writing spec.md.
+#                               #    Exactly one of these two shapes -- a single object, never a list:
+#   required: true             # this change's premise needs its real-world existence confirmed
+#   method: code-only          # live | data | code-only ONLY -- no other value (live/data are stronger evidence)
+#   reproduced: true           # boolean -- was it actually confirmed?
+#   evidence: "..."            # a single string (not a list) -- what was checked and how
+# --- or ---
+# premise_evidence:
+#   required: false
+#   reason: "..."              # string -- why this doesn't apply

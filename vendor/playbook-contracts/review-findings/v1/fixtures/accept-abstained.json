@@ -1,0 +1,29 @@
+{
+  "schema_version": "review-findings/v1",
+  "record_id": "rf-2026-08-23-004",
+  "recorded_at": "2026-08-23T12:30:00Z",
+  "supersedes_record_id": null,
+  "subject": {
+    "repository_ref": "shiki-yusuke/evidence-docs",
+    "digest": "sha256:4444444444444444444444444444444444444444444444444444444444444444"
+  },
+  "scan_scope": {
+    "paths": ["src/**/*.ts"],
+    "commit_range": {
+      "base": "1010101010101010101010101010101010101010",
+      "head": "2020202020202020202020202020202020202020"
+    },
+    "lenses": ["performance"]
+  },
+  "assessor": {
+    "kind": "hybrid",
+    "model_cohort": "sonnet-5",
+    "independence": { "code": "human_missing_decision_maker_flag", "params": {} }
+  },
+  "outcome": "abstained",
+  "abstention": {
+    "code": "verifier_unavailable",
+    "params": { "reason": "benchmark harness for token_budget selection timed out twice, no third retry policy defined" }
+  },
+  "findings": []
+}

@@ -1,0 +1,72 @@
+{
+  "schema_version": "1.0",
+  "intent_id": "I-2026-08-27-f-shadow-evaluator",
+  "revisions": [
+    {
+      "revision_id": "r1",
+      "estimated_at": "2026-08-26T20:08:43.242Z",
+      "as_of_phase": "1_intent",
+      "repo_commit": "6ee1257201d8eef7699569a30bb1fbebbc2966f6",
+      "estimator_version": "lane-estimator/0.1.0",
+      "predictors": {
+        "files_touched_estimate": null,
+        "files_touched_observed": null,
+        "layers_crossed": null,
+        "risk_class": "medium",
+        "spec_rule_count": null,
+        "novel_surface": "unknown"
+      },
+      "token_basis": "agent-cost-raw-total/v1",
+      "neighbors": [],
+      "population_condition": {
+        "population_size": 4,
+        "method": "abstained",
+        "experimental": true
+      },
+      "decision_v2": {
+        "schema_version": "estimate/v2",
+        "target": {
+          "metric": "tokens",
+          "unit": "tokens"
+        },
+        "decision": {
+          "status": "abstained",
+          "reason_codes": [
+            "NOVEL_SURFACE_UNKNOWN"
+          ]
+        },
+        "applicability": {
+          "status": "unknown"
+        },
+        "cohort": {
+          "agent_type": "claude-code",
+          "model_provider": "anthropic",
+          "model_generation": "sonnet-5",
+          "model_id": "claude-sonnet-5",
+          "routing_policy_digest": "23965dcbf39ff9fe371f8d6d8c6c2cd94153122ff1e53eb5c8b2e83839230020",
+          "prompt_policy_digest": "4fc831f4e710581522b2f3ece49a868f8b18da690c2e7d53f443cf74aa3ec6f4",
+          "measure_contract_version": "measure/v1",
+          "token_basis": "agent-cost-raw-total/v1",
+          "execution_profile_digest": "b8db452679f3cbcf9f6992d0d59dfa3e859adcbd2fb933c6ff7d5bca2670f3a1"
+        },
+        "population": {
+          "candidate_count": 5,
+          "eligible_count": 0,
+          "excluded_by_reason": {
+            "MODEL_GENERATION_MISMATCH": 4,
+            "TOKEN_BASIS_MISMATCH": 1
+          }
+        },
+        "prediction_interval": {
+          "status": "insufficient_data"
+        },
+        "coverage_history": {
+          "frozen_predictions_only": true
+        },
+        "drift": {
+          "status": "insufficient_data"
+        }
+      }
+    }
+  ]
+}

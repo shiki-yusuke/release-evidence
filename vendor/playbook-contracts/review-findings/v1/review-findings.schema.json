@@ -1,0 +1,268 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "review-findings/v1 record",
+  "description": "DRAFT (draft_revision 1) -- NOT FROZEN. One immutable observation record: 'what a reviewer found (or did not find, or could not determine) in one recorded scan_scope of one subject digest.' A record never edits another; a correction is a NEW record naming the old one via supersedes_record_id, and a different subject.digest (e.g. after a fix) makes it a DIFFERENT subject by construction -- the old record's findings are not silently migrated forward. This contract carries NO promotion authority: it only records what was observed. See docs/protocols/review-findings-v1.md. NOTE: the spec's field name 'reviewer' collides with contracts/shared/personal-dimensions.mjs's forbidden-key set (same collision decision/v1 already hit with 'reviewer'/'critic_engine' -- see that protocol's own note); this schema uses 'assessor' instead, naming the SAME concept (kind of thing that produced the finding, never a person), to keep every accepting fixture passing the mandatory personal-dimension scan.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "record_id",
+    "recorded_at",
+    "supersedes_record_id",
+    "subject",
+    "scan_scope",
+    "assessor",
+    "outcome",
+    "abstention",
+    "findings"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "review-findings/v1"
+    },
+    "record_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "recorded_at": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$",
+      "description": "UTC, literal Z only -- same rule as release-evidence/v0's occurred_at. An offset timestamp is rejected outright."
+    },
+    "supersedes_record_id": {
+      "type": ["string", "null"],
+      "minLength": 1,
+      "description": "The record this one corrects, if any. Append-only: superseding never edits or deletes the prior record."
+    },
+    "subject": {
+      "type": "object",
+      "required": ["repository_ref", "digest"],
+      "additionalProperties": false,
+      "properties": {
+        "repository_ref": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^/\\s]+/[^/\\s]+$",
+          "description": "Durable identifier (owner/name), never a local filesystem path -- same rule as release-evidence/v0's source.repo."
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "description": "Binds repository_ref + the normalized scan_scope (commit_range, paths, lenses) at scan time. A fix that changes any of these produces a DIFFERENT digest -- the record for the old digest is not retroactively satisfied by a review of the new one (TEST-09)."
+        }
+      }
+    },
+    "scan_scope": {
+      "type": "object",
+      "required": ["paths", "commit_range", "lenses"],
+      "additionalProperties": false,
+      "properties": {
+        "paths": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Never omitted, never empty -- a whole-repository scan states so explicitly (e.g. '**/*'), rather than defaulting an absent array to 'everything' (R1: outcome=none_observed_in_recorded_scope can only ever mean 'looked at this recorded scope and found nothing', never 'looked at nothing')."
+        },
+        "commit_range": {
+          "type": "object",
+          "required": ["base", "head"],
+          "additionalProperties": false,
+          "properties": {
+            "base": { "type": "string", "pattern": "^([0-9a-f]{40}|[0-9a-f]{64})$" },
+            "head": { "type": "string", "pattern": "^([0-9a-f]{40}|[0-9a-f]{64})$" }
+          }
+        },
+        "lenses": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Only the lenses actually applied -- not a declaration of intent. An empty array would mean 'reviewed nothing', which none_observed_in_recorded_scope must never mean."
+        }
+      }
+    },
+    "assessor": {
+      "type": "object",
+      "required": ["kind", "model_cohort", "independence"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": ["human", "model", "hybrid", "deterministic_tool"]
+        },
+        "model_cohort": {
+          "type": ["string", "null"],
+          "minLength": 1,
+          "description": "null exactly for human/deterministic_tool (schema-enforced below); a non-empty cohort label for model/hybrid. Never an execution ID or a person's name -- a cohort label, same personal-dimension discipline as agent-metrics/v1."
+        },
+        "independence": {
+          "type": "object",
+          "required": ["code", "params"],
+          "additionalProperties": false,
+          "properties": {
+            "code": { "type": "string", "minLength": 1 },
+            "params": { "type": "object" }
+          },
+          "description": "Structured {code, params} record, same shape contracts/shared/derive-independence.mjs already emits (e.g. rec('different_provider', {...})) -- never a numeric independence score."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": ["kind"],
+            "properties": { "kind": { "enum": ["human", "deterministic_tool"] } }
+          },
+          "then": { "properties": { "model_cohort": { "type": "null" } } },
+          "else": { "properties": { "model_cohort": { "type": "string", "minLength": 1 } } }
+        }
+      ]
+    },
+    "outcome": {
+      "enum": ["findings_observed", "none_observed_in_recorded_scope", "abstained"]
+    },
+    "abstention": {
+      "type": ["object", "null"],
+      "description": "null unless outcome=abstained (schema-enforced below), in which case {code, params} is required -- never free prose alone."
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "finding_id",
+          "category",
+          "severity",
+          "claim",
+          "locations",
+          "suggested_fix",
+          "evidence_gate"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "finding_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Unique within this record (semantic check -- a single-record schema cannot see its own siblings)."
+          },
+          "category": {
+            "enum": [
+              "correctness",
+              "security",
+              "reliability",
+              "performance",
+              "type_safety",
+              "test_quality",
+              "maintainability",
+              "documentation",
+              "lint_format"
+            ]
+          },
+          "severity": {
+            "enum": ["critical", "high", "medium", "low"]
+          },
+          "claim": {
+            "type": "string",
+            "minLength": 1,
+            "description": "A single, verifiable claim -- never a bundle of unrelated observations, and never carrying a numeric confidence."
+          },
+          "locations": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": ["path", "start_line", "end_line"],
+              "additionalProperties": false,
+              "properties": {
+                "path": { "type": "string", "minLength": 1 },
+                "start_line": {
+                  "type": ["integer", "null"],
+                  "minimum": 1,
+                  "description": "null when the line is genuinely unknown -- never 0 (null-not-zero)."
+                },
+                "end_line": {
+                  "type": ["integer", "null"],
+                  "minimum": 1
+                }
+              }
+            }
+          },
+          "suggested_fix": {
+            "type": ["string", "null"],
+            "minLength": 1
+          },
+          "evidence_gate": {
+            "type": "object",
+            "required": ["oracle_kind", "oracle_ref", "predicate", "required_verdict"],
+            "additionalProperties": false,
+            "properties": {
+              "oracle_kind": {
+                "enum": ["external_outcome", "evigate"]
+              },
+              "oracle_ref": {
+                "type": "string",
+                "minLength": 1
+              },
+              "predicate": {
+                "type": "object",
+                "required": ["code", "params"],
+                "additionalProperties": false,
+                "properties": {
+                  "code": { "type": "string", "minLength": 1 },
+                  "params": { "type": "object" }
+                }
+              },
+              "required_verdict": {
+                "const": "proven",
+                "description": "The only value this finding can be promoted on -- a finding can never self-declare 'proven', only name what would have to hold."
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": ["outcome"],
+        "properties": { "outcome": { "const": "findings_observed" } }
+      },
+      "then": {
+        "properties": {
+          "findings": { "minItems": 1 },
+          "abstention": { "type": "null" }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["outcome"],
+        "properties": { "outcome": { "const": "none_observed_in_recorded_scope" } }
+      },
+      "then": {
+        "properties": {
+          "findings": { "maxItems": 0 },
+          "abstention": { "type": "null" }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["outcome"],
+        "properties": { "outcome": { "const": "abstained" } }
+      },
+      "then": {
+        "properties": {
+          "findings": { "maxItems": 0 },
+          "abstention": {
+            "type": "object",
+            "required": ["code", "params"],
+            "additionalProperties": false,
+            "properties": {
+              "code": { "type": "string", "minLength": 1 },
+              "params": { "type": "object" }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

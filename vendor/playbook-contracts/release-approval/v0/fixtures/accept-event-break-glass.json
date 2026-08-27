@@ -1,0 +1,24 @@
+{
+  "schema_version": "release-approval/v0",
+  "kind": "break_glass_approve",
+  "subject": {
+    "receipt_digest": "sha256:a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2",
+    "receipt_semantic_digest": "sha256:b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+    "bundle_digest": "sha256:c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2",
+    "selection_manifest_digest": "sha256:d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2",
+    "target": "production"
+  },
+  "principal": {
+    "principal_id": "sre-oncall-primary",
+    "issuer": "pagerduty-oidc",
+    "role_snapshot": "emergency-approver"
+  },
+  "occurred_at": "2026-08-23T18:00:00Z",
+  "expires_at": "2026-08-23T20:00:00Z",
+  "bypassed_predicate_ids": [
+    "privilege_boundary"
+  ],
+  "incident_ref": "INC-2026-08-23-001",
+  "recorded_after_side_effect": true,
+  "event_id": "sha256:59b80c65eba71c799aebf3f87026a759cf51368c1821071bf5db2e345e0f8b9c"
+}

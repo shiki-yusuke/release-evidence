@@ -1,0 +1,23 @@
+{
+  "schema_version": "promotion-receipt/v0",
+  "receipt_id": "pr-invalid-012",
+  "evaluated_at": "2026-08-23T17:00:00Z",
+  "evaluation_phase": "post_deploy",
+  "subject": {
+    "bundle_digest": "sha256:3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c",
+    "selection_manifest_digest": "sha256:3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d",
+    "target": "production"
+  },
+  "policy_digest": "sha256:3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e",
+  "effective_risk": "low",
+  "predicates": [
+    {
+      "predicate_id": "deployed_artifact_readback",
+      "applicability": "not_applicable",
+      "status": "unknown",
+      "evidence_refs": []
+    }
+  ],
+  "verdict": "ready_for_approval",
+  "semantic_digest": "sha256:0ab66e1fc160479860a096902a3387b2373dfe294eb3f6ca1d72ff9cc3471a7a"
+}

@@ -1,0 +1,72 @@
+{
+  "schema_version": "promotion-receipt/v0",
+  "receipt_id": "pr-2026-08-23-003",
+  "evaluated_at": "2026-08-23T13:20:00Z",
+  "evaluation_phase": "pre_promotion",
+  "subject": {
+    "bundle_digest": "sha256:aaaa222222222222222222222222222222222222222222222222222222222222",
+    "selection_manifest_digest": "sha256:bbbb222222222222222222222222222222222222222222222222222222222222",
+    "target": "staging"
+  },
+  "policy_digest": "sha256:cccc222222222222222222222222222222222222222222222222222222222222",
+  "effective_risk": "medium",
+  "semantic_digest": "sha256:7f9ad12196bf132654a13aeb4df20d817174e4e1aa28d7e6fc8a4e221caa511b",
+  "predicates": [
+    {
+      "predicate_id": "artifact_identity",
+      "applicability": "applicable",
+      "status": "satisfied",
+      "evidence_refs": [
+        {
+          "kind": "release_evidence",
+          "ref": "agent-cost@0.1.0",
+          "digest": "sha256:dddd222222222222222222222222222222222222222222222222222222222222"
+        }
+      ]
+    },
+    {
+      "predicate_id": "review_admissibility",
+      "applicability": "applicable",
+      "status": "satisfied",
+      "evidence_refs": [
+        {
+          "kind": "review_finding",
+          "ref": "rf-2026-08-23-002#F-01",
+          "digest": "sha256:2222222222222222222222222222222222222222222222222222222222222222"
+        }
+      ]
+    },
+    {
+      "predicate_id": "verification_coverage",
+      "applicability": "applicable",
+      "status": "unknown",
+      "evidence_refs": [],
+      "notes": "staging verification event has not yet arrived in the ledger at evaluation time"
+    },
+    {
+      "predicate_id": "preview_verified",
+      "applicability": "not_applicable",
+      "status": "unknown",
+      "evidence_refs": []
+    },
+    {
+      "predicate_id": "rollback_target_valid",
+      "applicability": "applicable",
+      "status": "satisfied",
+      "evidence_refs": [
+        {
+          "kind": "release_evidence",
+          "ref": "agent-cost@0.0.9",
+          "digest": "sha256:eeee222222222222222222222222222222222222222222222222222222222222"
+        }
+      ]
+    },
+    {
+      "predicate_id": "privilege_boundary",
+      "applicability": "not_applicable",
+      "status": "unknown",
+      "evidence_refs": []
+    }
+  ],
+  "verdict": "abstained"
+}

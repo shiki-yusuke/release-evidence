@@ -1,0 +1,242 @@
+{
+  "findings": [
+    {
+      "schema_version": "review-findings/v1",
+      "record_id": "rf-composite-fix-old",
+      "recorded_at": "2026-08-20T09:00:00Z",
+      "supersedes_record_id": null,
+      "subject": {
+        "repository_ref": "shiki-yusuke/spec-lane",
+        "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "scan_scope": {
+        "paths": [
+          "packages/core/src/estimate/adopt.ts"
+        ],
+        "commit_range": {
+          "base": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "head": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "lenses": [
+          "correctness"
+        ]
+      },
+      "assessor": {
+        "kind": "human",
+        "model_cohort": null,
+        "independence": {
+          "code": "human_third_party",
+          "params": {}
+        }
+      },
+      "outcome": "findings_observed",
+      "abstention": null,
+      "findings": [
+        {
+          "finding_id": "F-01",
+          "category": "correctness",
+          "severity": "high",
+          "claim": "abstain check runs after writeEstimateRefs",
+          "locations": [
+            {
+              "path": "adopt.ts",
+              "start_line": 42,
+              "end_line": 58
+            }
+          ],
+          "suggested_fix": "reorder",
+          "evidence_gate": {
+            "oracle_kind": "evigate",
+            "oracle_ref": "evigate://x/y",
+            "predicate": {
+              "code": "regression_reproduced",
+              "params": {}
+            },
+            "required_verdict": "proven"
+          }
+        }
+      ]
+    },
+    {
+      "schema_version": "review-findings/v1",
+      "record_id": "rf-composite-fix-new",
+      "recorded_at": "2026-08-23T09:00:00Z",
+      "supersedes_record_id": "rf-composite-fix-old",
+      "subject": {
+        "repository_ref": "shiki-yusuke/spec-lane",
+        "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      },
+      "scan_scope": {
+        "paths": [
+          "packages/core/src/estimate/adopt.ts"
+        ],
+        "commit_range": {
+          "base": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "head": "cccccccccccccccccccccccccccccccccccccccc"
+        },
+        "lenses": [
+          "correctness"
+        ]
+      },
+      "assessor": {
+        "kind": "human",
+        "model_cohort": null,
+        "independence": {
+          "code": "human_third_party",
+          "params": {}
+        }
+      },
+      "outcome": "none_observed_in_recorded_scope",
+      "abstention": null,
+      "findings": []
+    }
+  ],
+  "bundles": [
+    {
+      "schema_version": "release-evidence/v0",
+      "release_id": "spec-lane@0.7.0",
+      "source": {
+        "repo": "shiki-yusuke/spec-lane",
+        "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "tree_digest": "cccccccccccccccccccccccccccccccccccccccc",
+        "resolution": "git_tree"
+      },
+      "lane_ref": {
+        "lane_id": "living-twin-pivot",
+        "intent_digest": [
+          "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+        ],
+        "spec_digest": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+        "consensus_ack_digest": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+        "verification_digest": "sha256:4444444444444444444444444444444444444444444444444444444444444444"
+      },
+      "review": null,
+      "review_omitted": {
+        "code": "legacy_release_predates_contract",
+        "note": "composite fixture placeholder"
+      },
+      "artifacts": [
+        {
+          "kind": "package",
+          "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "artifact_ref": {
+            "registry": "npm",
+            "package": "@shiki-yusuke/spec-lane",
+            "version": "0.7.0",
+            "verifiability": "requires_fetch"
+          }
+        }
+      ],
+      "build": {
+        "recipe_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "toolchain_digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+      },
+      "known_deviations": [],
+      "rollback": {
+        "previous_release_id": "spec-lane@0.6.0"
+      },
+      "integrity": {
+        "level": "digest_only",
+        "signature": null
+      }
+    }
+  ],
+  "receipt": {
+    "schema_version": "promotion-receipt/v0",
+    "receipt_id": "pr-composite-laneref-arraytype",
+    "evaluated_at": "2026-08-23T21:00:00Z",
+    "evaluation_phase": "pre_promotion",
+    "subject": {
+      "bundle_digest": "sha256:5ddf92c41b05d1f22e44336ba0fd623e8cd9ce5cb9845e824c248a2feb1663bc",
+      "selection_manifest_digest": "sha256:7777777777777777777777777777777777777777777777777777777777777777",
+      "target": "production"
+    },
+    "policy_digest": "sha256:8888888888888888888888888888888888888888888888888888888888888888",
+    "effective_risk": "medium",
+    "predicates": [
+      {
+        "predicate_id": "artifact_identity",
+        "applicability": "applicable",
+        "status": "satisfied",
+        "evidence_refs": [
+          {
+            "kind": "release_evidence",
+            "ref": "spec-lane@0.7.0",
+            "digest": "sha256:5ddf92c41b05d1f22e44336ba0fd623e8cd9ce5cb9845e824c248a2feb1663bc"
+          }
+        ]
+      },
+      {
+        "predicate_id": "review_admissibility",
+        "applicability": "applicable",
+        "status": "satisfied",
+        "evidence_refs": [
+          {
+            "kind": "review_finding",
+            "ref": "rf-composite-fix-new#scope",
+            "digest": "sha256:9b73552bb18e05b92f92e9b8c39867950f78ff8b07506bd6f796c794d1cff00e"
+          }
+        ]
+      },
+      {
+        "predicate_id": "verification_coverage",
+        "applicability": "applicable",
+        "status": "satisfied",
+        "evidence_refs": [
+          {
+            "kind": "release_evidence",
+            "ref": "spec-lane@0.7.0",
+            "digest": "sha256:5ddf92c41b05d1f22e44336ba0fd623e8cd9ce5cb9845e824c248a2feb1663bc"
+          }
+        ]
+      },
+      {
+        "predicate_id": "preview_verified",
+        "applicability": "not_applicable",
+        "status": "unknown",
+        "evidence_refs": []
+      },
+      {
+        "predicate_id": "rollback_target_valid",
+        "applicability": "applicable",
+        "status": "satisfied",
+        "evidence_refs": [
+          {
+            "kind": "review_finding",
+            "ref": "rf-composite-fix-old#F-01",
+            "digest": "sha256:c363d12dbfce8d434c2906cff13a335101277da2b619588eaea24043465b6fb1"
+          }
+        ]
+      },
+      {
+        "predicate_id": "privilege_boundary",
+        "applicability": "not_applicable",
+        "status": "unknown",
+        "evidence_refs": []
+      }
+    ],
+    "verdict": "ready_for_approval",
+    "semantic_digest": "sha256:5ea9d671faf103aaafd6751acef79c6541cce9553bbf0ae2f3d11d9e3daf7cf3"
+  },
+  "approval_events": [
+    {
+      "schema_version": "release-approval/v0",
+      "kind": "approval_granted",
+      "subject": {
+        "receipt_digest": "sha256:5f92f987ba07043339615c408643a588005847b8c492a4d2e25197905ced9794",
+        "receipt_semantic_digest": "sha256:5ea9d671faf103aaafd6751acef79c6541cce9553bbf0ae2f3d11d9e3daf7cf3",
+        "bundle_digest": "sha256:5ddf92c41b05d1f22e44336ba0fd623e8cd9ce5cb9845e824c248a2feb1663bc",
+        "selection_manifest_digest": "sha256:7777777777777777777777777777777777777777777777777777777777777777",
+        "target": "production"
+      },
+      "principal": {
+        "principal_id": "release-captain-04",
+        "issuer": "github-actions-oidc",
+        "role_snapshot": "release-approver"
+      },
+      "occurred_at": "2026-08-23T21:10:00Z",
+      "expires_at": "2026-08-24T21:10:00Z",
+      "event_id": "sha256:3572b2c410121ddd660b9c148887fb69eaf89c44c6742fd5f8b0af6be44b373a"
+    }
+  ]
+}

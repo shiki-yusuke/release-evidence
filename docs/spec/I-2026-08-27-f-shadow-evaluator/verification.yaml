@@ -1,0 +1,145 @@
+schema_version: "1.0"
+intent_id: I-2026-08-27-f-shadow-evaluator
+test_matrix:
+  - ears_rule: 契約検証層 (record/collection semantic MUST、terra must 1/7/D-1/E-1)
+    test_type: unit
+    test_file: test/shadow-evaluate.test.ts
+    test_name: 契約不正 record → record_invalid / release_id 整合 / event_id occurrence 単位
+      uniqueness
+    status: added
+  - ears_rule: "pointer chain (must 2/C-2: review-finding / rollback / selection /
+      policy digest 解決)"
+    test_type: unit
+    test_file: test/shadow-evaluate.test.ts
+    test_name: pointer 無し→unknown、解決→satisfied、policy digest|null 二択
+    status: added
+  - ears_rule: "evaluation_cut (must 3: observed_at 必須・実在日時・cut 後除外)"
+    test_type: unit
+    test_file: test/shadow-evaluate.test.ts
+    test_name: must-3 regression 4本 (不正cut/観測省略/時刻不一致/未来record改ざん)
+    status: added
+  - ears_rule: "決定論 (must 4/C-3: 重複 digest 拒否・input_errors 決定的ソート)"
+    test_type: integration
+    test_file: test/shadow-cli.test.ts
+    test_name: 2プロセス byte 比較 + records/errors permutation
+    status: added
+  - ears_rule: "receipt full-fidelity (must 5: semantic MUST 実行・projection 照合)"
+    test_type: integration
+    test_file: test/shadow-tamper.test.ts
+    test_name: semantic_digest 再計算込み改ざんを reference verifier が reject
+    status: added
+  - ears_rule: "architecture lock (must 6/C-4/E-2/F/G: default-deny + supply-cut + 3経路遮断)"
+    test_type: unit
+    test_file: test/shadow-architecture.test.ts
+    test_name: "36 テスト (AST default-deny / node:module supply-cut / getBuiltinModule
+      / eval / data: URL)"
+    status: added
+  - ears_rule: conformance parity (vendored 3契約 + release-evidence fixtures 全列挙)
+    test_type: regression
+    test_file: test/shadow-conformance.test.ts
+    test_name: accept/reject 期待完全一致 (契約 dir 指定時 369/369、正常系58件の過剰 reject 0)
+    status: added
+  - ears_rule: replay pack e2e (契約 valid record で構成、collection 検証済み expected)
+    test_type: integration
+    test_file: test/shadow-replay-pack.test.ts
+    test_name: lane-backed / lane-ref-omitted の CLI e2e
+    status: added
+test_gaps:
+  - taxonomy: lifecycle_missed
+    description: CI は RELEASE_EVIDENCE_CONTRACTS_DIR 未設定のため45件が
+      skip（release-approval conformance 含む）。CI で外部契約を用意し zero-skip
+      にするのは別タスク（terra round 7 should）
+    priority: medium
+  - taxonomy: compatibility_missed
+    description: 実 corpus 5件は全て selection manifest 不在の非 lane release で、6述語の実データ
+      評価には未到達。live unlock 前に lane-backed 実 corpus の replay が必要（terra round 7
+      should、 real-corpus-replay-20260827.md に記録）
+    priority: high
+  - taxonomy: knowledge_missed
+    description: privilege_boundary は契約に CI 設定の record kind が無く常に unknown_structural
+      （verdict ready_for_approval は現契約では出ない）。receipt が preview event / rollback
+      history を束縛できない点と合わせ G 前の contract gap として playbook へ（chunk 2 記録）
+    priority: high
+manual_verification:
+  - id: MV-R1
+    description: 実 release corpus 5件 (agent-metrics-dashboard、harvester metrics-data
+      由来) の replay。bundle digest 宣言値と再計算値 5/5 一致、全件 unknown_structural で正直に停止、
+      false allow ゼロ、別プロセス2回実行の byte 比較 5/5 IDENTICAL
+    expected_status: 実施済み 2026-08-27 (real-corpus-replay-20260827.md)
+  - id: MV-R2
+    description: shadow 出力の record_digest を Python (json.dumps sort_keys+compact =
+      JCS 近似の 別実装) で pipeline 外独立再計算し、宣言値と比較
+    expected_status: 5/5 一致 (orchestrator 実施 2026-08-27)
+goal_stopping_condition:
+  - terra レビュー 7巡 (must 履歴 7→4→2→2→2→3→PASS、最終 369/369 passed・新規 must ゼロ)
+  - 実 corpus replay で false allow ゼロ + 決定論 byte 一致 + 独立再計算一致
+spec_consensus:
+  spec_ssot_ref: docs/spec/I-2026-08-27-f-shadow-evaluator/spec.md
+  spec_digest: 44ac041f975c51ca824c3778f8bc850a1df6a4ee1370c7116d5b17564433579f
+  verification_digest: f73f5702c79d6d9c1bc101f3e7e96402992a750878fee5aa3e55bfa79887f049
+  deviations:
+    - spec_ref: spec.md#I/O 契約（policy ref）
+      actual: policy ref は digest|null の二択に実装（null は
+        absent_reason.code=policy_snapshot_absent の明示宣言・依存観測は not_yet_recorded、非
+        null は expected kind + whole-record digest の実解決必須・未解決は wrapper unknown で
+        receipt なし）。現 corpus に policy snapshot record が存在しないため
+      action: accept
+      status: resolved
+      rationale: sol 裁定の入力ポインタ表（policy ref = 評価開始時の policy snapshot）の意図を保ちつつ、実データに
+        snapshot が無い現状を捏造せず表現する実装。terra 3巡目が「黙認 receipt
+        生成」の除去を確認、5〜7巡目で再指摘なし。live 導入前に policy snapshot の記録機構が整えば null 経路は自然消滅する
+      evidence_ref: docs/spec/I-2026-08-27-f-shadow-evaluator/implement-notes.md
+  reviewer_ack:
+    reviewer_kind: independent_agent
+    reviewer_id: codex-gpt-5.6-terra-round7
+    acked_at: 2026-08-27T00:12:04.511Z
+    spec_sha256: 44ac041f975c51ca824c3778f8bc850a1df6a4ee1370c7116d5b17564433579f
+    verification_sha256: f73f5702c79d6d9c1bc101f3e7e96402992a750878fee5aa3e55bfa79887f049
+    note: terra 7巡 PASS（369/369、新規 must ゼロ、must 履歴 7→4→2→2→2→3→0）。sol
+      設計裁定準拠。orchestrator (Fable) が各ラウンド検収
+success_criteria_matrix:
+  - criterion: release-evidence-shadow replay が実 release corpus
+      に対して決定論的に走る（同一入力を別プロセスで2回実行し出力 byte 一致）
+    covered_by: manual
+    evidence: 実 corpus 5 release の replay pack で別プロセス2回実行、cmp 差分ゼロ 5/5
+      (real-corpus-replay-20260827.md)。加えて test/shadow-cli.test.ts の2プロセス比較が
+      TZ/locale/順序 permutation でも byte 一致を回帰担保
+    negation_test: 1 byte でも差があれば cmp が非0。permutation テストは入力順序反転で差が出れば fail
+  - criterion: pre_promotion 述語6種すべてが実装され、解決できない場合は明示的 unknown + closed reason code
+      になる（黙って satisfied にしない）
+    covered_by: test
+    evidence: 述語6種の satisfied/contradicted/unknown+reason 3方向テスト
+      (test/shadow-evaluate.test.ts)。terra が7巡で試みた false satisfied 攻撃（契約不正
+      record / kind 解決 / cut 迂回 / 孤立 event chain / release_id 偽装 / event_id
+      重複）は全て回帰テスト化 され reject される
+    negation_test: terra の各再現攻撃がそのままテストになっており、防御が外れればテストが fail
+  - criterion: shadow 出力自身が evidence-closed（input_manifest digest と record_digest を
+      pipeline 外の独立再計算で検証できる）
+    covered_by: manual
+    evidence: "MV-R2: Python 別実装で record_digest を独立再計算し実 corpus 出力 5/5 一致。
+      test/shadow-tamper.test.ts は record_digest 差し替えの検出を回帰担保"
+    negation_test: 出力 body の1フィールド改変で再計算 digest が宣言値と不一致になる (tamper テストが検証済み)
+  - criterion: live 化の構造的防止が機械検証される（mode=shadow_only / verdict による非0 exit なし /
+      cohort-2-live-lock.json 有効時に deploy・gate 系から shadow module への import
+      が1件でもあればテストが fail）
+    covered_by: test
+    evidence: "test/shadow-architecture.test.ts 36 テスト: production src default-deny
+      + node:module supply-cut + getBuiltinModule/eval/data: URL 遮断 +
+      違反注入の自己テスト。 CLI は verdict によらず exit 0 (test/shadow-cli.test.ts)。脅威モデル境界は
+      round G で明文化"
+    negation_test: 違反 import を合成した一時ファイルで guard が fail する自己テストが各経路にある
+  - criterion: conformance parity（vendored 契約 fixtures）+ 改ざん注入 + 決定論の3系統のテストが全部 green
+    covered_by: test
+    evidence: 契約 dir 指定で 369/369 passed・0 skipped (terra round 7 実測)。未指定でも 284
+      passed / 45 skipped (skip は既存規約どおり)。改ざん注入は semantic_digest 再計算込み、 parity は
+      fixture 全列挙で件数 hardcode なし
+    negation_test: fixture 期待の accept/reject を1件反転すれば parity が fail。正常系58件の 過剰
+      reject 0 も terra が独立確認
+cross_check_intent_vs_spec:
+  performed_at: 2026-08-27 (Phase 4)
+  finding: 齟齬なし。intent.success 5件は spec の採用済み設計・テスト節と1:1対応。spec の非目標 （live gate /
+    approval consumer / selection_manifest 契約化 / receipt 契約変更）が diff に
+    含まれないことを確認（src/core・src/cli・vendor/playbook-shared・.github は無変更）。 spec
+    からの逸脱1件（policy ref の digest|null 二択）は deviation として記録し人間確認に付す。 architecture
+    guard の脅威モデル境界（事故防止、悪意ある同一 repo 著者は対象外）は round G で明文化し、frozen decision
+    の「静的走査は必要条件」と整合

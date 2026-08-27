@@ -1,0 +1,25 @@
+{
+  "schema_version": "promotion-receipt/v0",
+  "receipt_id": "pr-invalid-001",
+  "evaluated_at": "2026-08-23T15:00:00Z",
+  "evaluation_phase": "pre_promotion",
+  "subject": {
+    "bundle_digest": "sha256:aaaa444444444444444444444444444444444444444444444444444444444444",
+    "selection_manifest_digest": "sha256:bbbb444444444444444444444444444444444444444444444444444444444444",
+    "target": "production"
+  },
+  "policy_digest": "sha256:cccc444444444444444444444444444444444444444444444444444444444444",
+  "effective_risk": "medium",
+  "semantic_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "predicates": [
+    {
+      "predicate_id": "human_release_approval",
+      "applicability": "applicable",
+      "status": "satisfied",
+      "evidence_refs": [
+        { "kind": "other", "ref": "some-human-said-so", "digest": "sha256:dddd444444444444444444444444444444444444444444444444444444444444" }
+      ]
+    }
+  ],
+  "verdict": "ready_for_approval"
+}

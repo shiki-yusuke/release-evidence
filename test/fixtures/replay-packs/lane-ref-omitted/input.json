@@ -1,0 +1,77 @@
+{
+  "schema_version": "shadow-evaluation-input/v0",
+  "evaluation_cut": "2026-08-27T00:00:00Z",
+  "policy": {
+    "digest": null,
+    "absent_reason": {
+      "code": "policy_snapshot_absent",
+      "note": "synthetic replay pack -- no real policy snapshot exists for this scenario"
+    },
+    "effective_risk": "medium"
+  },
+  "contract_pin": {
+    "playbook_commit": "f9f0c127588f60fd299a02859c9f70f0b81a9dcc"
+  },
+  "subject": {
+    "bundle_digest": "sha256:b7f0be414a5c004eef01975ccc3e2ccdc3bff47c064796543c9b2a82e19a198f",
+    "selection_manifest_digest": "sha256:035bda1a165a9360b8f2c98bab1cd4214653b5ef3e9ab9bd47491c699a8b6b40",
+    "target": "production"
+  },
+  "records": [
+    {
+      "kind": "selection_manifest",
+      "digest": "sha256:035bda1a165a9360b8f2c98bab1cd4214653b5ef3e9ab9bd47491c699a8b6b40",
+      "content": {
+        "manifest_id": "sm-replay-lane-ref-omitted"
+      }
+    },
+    {
+      "kind": "release_evidence_bundle",
+      "digest": "sha256:b7f0be414a5c004eef01975ccc3e2ccdc3bff47c064796543c9b2a82e19a198f",
+      "content": {
+        "schema_version": "release-evidence/v0",
+        "release_id": "spec-lane@0.7.0",
+        "source": {
+          "repo": "shiki-yusuke/spec-lane",
+          "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "tree_digest": "cccccccccccccccccccccccccccccccccccccccc",
+          "resolution": "git_tree"
+        },
+        "lane_ref": null,
+        "lane_ref_omitted": {
+          "code": "legacy_release_predates_contract",
+          "note": "composite fixture placeholder"
+        },
+        "review": null,
+        "review_omitted": {
+          "code": "legacy_release_predates_contract",
+          "note": "composite fixture placeholder"
+        },
+        "artifacts": [
+          {
+            "kind": "package",
+            "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "artifact_ref": {
+              "registry": "npm",
+              "package": "@shiki-yusuke/spec-lane",
+              "version": "0.7.0",
+              "verifiability": "requires_fetch"
+            }
+          }
+        ],
+        "build": {
+          "recipe_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "toolchain_digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        },
+        "known_deviations": [],
+        "rollback": {
+          "previous_release_id": "spec-lane@0.6.0"
+        },
+        "integrity": {
+          "level": "digest_only",
+          "signature": null
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "schema_version": "release-approval/v0",
+  "event_id": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "kind": "break_glass_approve",
+  "subject": {
+    "receipt_digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "receipt_semantic_digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "bundle_digest": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "selection_manifest_digest": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "target": "production"
+  },
+  "principal": {
+    "principal_id": "sre-oncall-primary",
+    "issuer": "pagerduty-oidc",
+    "role_snapshot": "emergency-approver"
+  },
+  "occurred_at": "2026-08-23T18:00:00Z",
+  "expires_at": "2026-08-23T20:00:00Z",
+  "incident_ref": "INC-2026-08-23-001"
+}

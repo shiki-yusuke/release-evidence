@@ -1,0 +1,26 @@
+{
+  "schema_version": "review-findings/v1",
+  "record_id": "rf-invalid-005",
+  "recorded_at": "2026-08-23T09:00:00Z",
+  "supersedes_record_id": null,
+  "subject": {
+    "repository_ref": "shiki-yusuke/spec-lane",
+    "digest": "sha256:9999999999999999999999999999999999999999999999999999999999999999"
+  },
+  "scan_scope": {
+    "paths": ["packages/core/src/**/*.ts"],
+    "commit_range": {
+      "base": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "head": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    "lenses": ["correctness"]
+  },
+  "assessor": {
+    "kind": "human",
+    "model_cohort": null,
+    "independence": { "code": "human_third_party", "params": {} }
+  },
+  "outcome": "abstained",
+  "abstention": null,
+  "findings": []
+}

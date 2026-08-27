@@ -1,0 +1,85 @@
+{
+  "schema_version": "review-findings/v1",
+  "record_id": "rf-2026-08-23-002",
+  "recorded_at": "2026-08-23T10:15:00Z",
+  "supersedes_record_id": null,
+  "subject": {
+    "repository_ref": "shiki-yusuke/agent-cost",
+    "digest": "sha256:2222222222222222222222222222222222222222222222222222222222222222"
+  },
+  "scan_scope": {
+    "paths": [
+      "**/*"
+    ],
+    "commit_range": {
+      "base": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "head": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+    },
+    "lenses": [
+      "type_safety",
+      "test_quality",
+      "documentation"
+    ]
+  },
+  "assessor": {
+    "kind": "model",
+    "model_cohort": "gpt-5.6-terra",
+    "independence": {
+      "code": "different_provider",
+      "params": {
+        "shaper_provider": "anthropic",
+        "critic_provider": "openai"
+      }
+    }
+  },
+  "outcome": "findings_observed",
+  "abstention": null,
+  "findings": [
+    {
+      "finding_id": "F-01",
+      "category": "type_safety",
+      "severity": "medium",
+      "claim": "measure() return type widens to any after the JSON.parse in report.py's cross-language shim.",
+      "locations": [
+        {
+          "path": "src/agent_cost/report.py",
+          "start_line": 120,
+          "end_line": 133
+        }
+      ],
+      "suggested_fix": null,
+      "evidence_gate": {
+        "oracle_kind": "evigate",
+        "oracle_ref": "evigate://agent-cost/report-return-type",
+        "predicate": {
+          "code": "type_check_fails_on_head",
+          "params": {}
+        },
+        "required_verdict": "proven"
+      }
+    },
+    {
+      "finding_id": "F-02",
+      "category": "documentation",
+      "severity": "low",
+      "claim": "docs/releasing.md still references the pre-v0.2.0 measure --format flag name.",
+      "locations": [
+        {
+          "path": "docs/releasing.md",
+          "start_line": null,
+          "end_line": null
+        }
+      ],
+      "suggested_fix": "Update to --format json.",
+      "evidence_gate": {
+        "oracle_kind": "external_outcome",
+        "oracle_ref": "https://github.com/shiki-yusuke/agent-cost/blob/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/docs/releasing.md",
+        "predicate": {
+          "code": "stale_reference_confirmed",
+          "params": {}
+        },
+        "required_verdict": "proven"
+      }
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "_comment": "Machine-checkable expectations for this replay pack's input.json, consumed by test/shadow-replay-pack.test.ts. NOT part of the input the evaluator reads (see docs/replay-pack-format.md) -- same convention as vendor/playbook-contracts/*/fixtures/expected-results.json.",
+  "evaluation_status": "evaluated",
+  "verdict": "abstained",
+  "predicate_observations": [
+    { "predicate_id": "artifact_identity", "applicability": "applicable", "status": "satisfied" },
+    { "predicate_id": "review_admissibility", "applicability": "applicable", "status": "satisfied" },
+    { "predicate_id": "verification_coverage", "applicability": "applicable", "status": "satisfied" },
+    {
+      "predicate_id": "preview_verified",
+      "applicability": "applicable",
+      "status": "unknown",
+      "reason_code": "unknown_structural"
+    },
+    {
+      "predicate_id": "rollback_target_valid",
+      "applicability": "applicable",
+      "status": "unknown",
+      "reason_code": "referent_unresolved"
+    },
+    {
+      "predicate_id": "privilege_boundary",
+      "applicability": "applicable",
+      "status": "unknown",
+      "reason_code": "unknown_structural"
+    }
+  ]
+}

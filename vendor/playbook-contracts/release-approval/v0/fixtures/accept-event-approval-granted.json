@@ -1,0 +1,19 @@
+{
+  "schema_version": "release-approval/v0",
+  "kind": "approval_granted",
+  "subject": {
+    "receipt_digest": "sha256:a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+    "receipt_semantic_digest": "sha256:b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+    "bundle_digest": "sha256:c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1",
+    "selection_manifest_digest": "sha256:d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1",
+    "target": "production"
+  },
+  "principal": {
+    "principal_id": "release-captain-01",
+    "issuer": "github-actions-oidc",
+    "role_snapshot": "release-approver"
+  },
+  "occurred_at": "2026-08-23T17:00:00Z",
+  "expires_at": "2026-08-24T17:00:00Z",
+  "event_id": "sha256:8f98c638098222ca21f7b45df86685c8352d3e8d85e278313fc391cd289a04c7"
+}

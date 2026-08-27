@@ -1,0 +1,26 @@
+{
+  "schema_version": "review-findings/v1",
+  "record_id": "rf-2026-08-23-003",
+  "recorded_at": "2026-08-23T11:00:00Z",
+  "supersedes_record_id": null,
+  "subject": {
+    "repository_ref": "shiki-yusuke/release-evidence-harness",
+    "digest": "sha256:3333333333333333333333333333333333333333333333333333333333333333"
+  },
+  "scan_scope": {
+    "paths": ["contracts/release-evidence/v0/**/*.mjs"],
+    "commit_range": {
+      "base": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "head": "ffffffffffffffffffffffffffffffffffffffff"
+    },
+    "lenses": ["security", "performance"]
+  },
+  "assessor": {
+    "kind": "deterministic_tool",
+    "model_cohort": null,
+    "independence": { "code": "no_shared_lineage_possible", "params": { "shaper_kind": "human", "critic_kind": "deterministic_tool" } }
+  },
+  "outcome": "none_observed_in_recorded_scope",
+  "abstention": null,
+  "findings": []
+}

@@ -1,0 +1,43 @@
+{
+  "schema_version": "review-findings/v1",
+  "record_id": "rf-2026-08-23-001",
+  "recorded_at": "2026-08-23T09:00:00Z",
+  "supersedes_record_id": null,
+  "subject": {
+    "repository_ref": "shiki-yusuke/spec-lane",
+    "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+  },
+  "scan_scope": {
+    "paths": ["packages/core/src/**/*.ts"],
+    "commit_range": {
+      "base": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "head": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    "lenses": ["correctness", "security"]
+  },
+  "assessor": {
+    "kind": "human",
+    "model_cohort": null,
+    "independence": { "code": "human_third_party", "params": {} }
+  },
+  "outcome": "findings_observed",
+  "abstention": null,
+  "findings": [
+    {
+      "finding_id": "F-01",
+      "category": "correctness",
+      "severity": "high",
+      "claim": "estimate --adopt writes estimate_refs before the abstain gate runs, so an abstained estimate can still be adopted.",
+      "locations": [
+        { "path": "packages/core/src/estimate/adopt.ts", "start_line": 42, "end_line": 58 }
+      ],
+      "suggested_fix": "Move the abstain check before writeEstimateRefs().",
+      "evidence_gate": {
+        "oracle_kind": "evigate",
+        "oracle_ref": "evigate://spec-lane/estimate-adopt-abstain-order",
+        "predicate": { "code": "regression_reproduced_on_head", "params": { "commit": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" } },
+        "required_verdict": "proven"
+      }
+    }
+  ]
+}
