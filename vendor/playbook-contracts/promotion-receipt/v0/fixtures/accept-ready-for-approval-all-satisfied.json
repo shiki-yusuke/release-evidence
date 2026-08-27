@@ -1,0 +1,77 @@
+{
+  "schema_version": "promotion-receipt/v0",
+  "receipt_id": "pr-2026-08-23-001",
+  "evaluated_at": "2026-08-23T13:00:00Z",
+  "evaluation_phase": "pre_promotion",
+  "subject": {
+    "bundle_digest": "sha256:aaaa000000000000000000000000000000000000000000000000000000000000",
+    "selection_manifest_digest": "sha256:bbbb000000000000000000000000000000000000000000000000000000000000",
+    "target": "production"
+  },
+  "policy_digest": "sha256:cccc000000000000000000000000000000000000000000000000000000000000",
+  "effective_risk": "medium",
+  "semantic_digest": "sha256:d385dedb9a186c6c1b71b1380ecec823f73a64341ab606194d12f18e7914a5a8",
+  "predicates": [
+    {
+      "predicate_id": "artifact_identity",
+      "applicability": "applicable",
+      "status": "satisfied",
+      "evidence_refs": [
+        {
+          "kind": "release_evidence",
+          "ref": "spec-lane@0.7.0",
+          "digest": "sha256:dddd000000000000000000000000000000000000000000000000000000000000"
+        }
+      ]
+    },
+    {
+      "predicate_id": "review_admissibility",
+      "applicability": "applicable",
+      "status": "satisfied",
+      "evidence_refs": [
+        {
+          "kind": "review_finding",
+          "ref": "rf-2026-08-23-003#scope",
+          "digest": "sha256:3333333333333333333333333333333333333333333333333333333333333333"
+        }
+      ]
+    },
+    {
+      "predicate_id": "verification_coverage",
+      "applicability": "applicable",
+      "status": "satisfied",
+      "evidence_refs": [
+        {
+          "kind": "release_evidence",
+          "ref": "spec-lane@0.7.0",
+          "digest": "sha256:dddd000000000000000000000000000000000000000000000000000000000000"
+        }
+      ]
+    },
+    {
+      "predicate_id": "preview_verified",
+      "applicability": "not_applicable",
+      "status": "unknown",
+      "evidence_refs": []
+    },
+    {
+      "predicate_id": "rollback_target_valid",
+      "applicability": "applicable",
+      "status": "satisfied",
+      "evidence_refs": [
+        {
+          "kind": "release_evidence",
+          "ref": "spec-lane@0.6.0",
+          "digest": "sha256:eeee000000000000000000000000000000000000000000000000000000000000"
+        }
+      ]
+    },
+    {
+      "predicate_id": "privilege_boundary",
+      "applicability": "not_applicable",
+      "status": "unknown",
+      "evidence_refs": []
+    }
+  ],
+  "verdict": "ready_for_approval"
+}

@@ -1,0 +1,238 @@
+{
+  "findings": [
+    {
+      "schema_version": "review-findings/v1",
+      "record_id": "rf-composite-fix-old",
+      "recorded_at": "2026-08-20T09:00:00Z",
+      "supersedes_record_id": null,
+      "subject": {
+        "repository_ref": "shiki-yusuke/spec-lane",
+        "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "scan_scope": {
+        "paths": [
+          "packages/core/src/estimate/adopt.ts"
+        ],
+        "commit_range": {
+          "base": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "head": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "lenses": [
+          "correctness"
+        ]
+      },
+      "assessor": {
+        "kind": "human",
+        "model_cohort": null,
+        "independence": {
+          "code": "human_third_party",
+          "params": {}
+        }
+      },
+      "outcome": "findings_observed",
+      "abstention": null,
+      "findings": [
+        {
+          "finding_id": "F-01",
+          "category": "correctness",
+          "severity": "high",
+          "claim": "abstain check runs after writeEstimateRefs",
+          "locations": [
+            {
+              "path": "adopt.ts",
+              "start_line": 42,
+              "end_line": 58
+            }
+          ],
+          "suggested_fix": "reorder",
+          "evidence_gate": {
+            "oracle_kind": "evigate",
+            "oracle_ref": "evigate://x/y",
+            "predicate": {
+              "code": "regression_reproduced",
+              "params": {}
+            },
+            "required_verdict": "proven"
+          }
+        }
+      ]
+    },
+    {
+      "schema_version": "review-findings/v1",
+      "record_id": "rf-composite-fix-new",
+      "recorded_at": "2026-08-23T09:00:00Z",
+      "supersedes_record_id": "rf-composite-fix-old",
+      "subject": {
+        "repository_ref": "shiki-yusuke/spec-lane",
+        "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      },
+      "scan_scope": {
+        "paths": [
+          "packages/core/src/estimate/adopt.ts"
+        ],
+        "commit_range": {
+          "base": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "head": "cccccccccccccccccccccccccccccccccccccccc"
+        },
+        "lenses": [
+          "correctness"
+        ]
+      },
+      "assessor": {
+        "kind": "human",
+        "model_cohort": null,
+        "independence": {
+          "code": "human_third_party",
+          "params": {}
+        }
+      },
+      "outcome": "none_observed_in_recorded_scope",
+      "abstention": null,
+      "findings": []
+    }
+  ],
+  "bundles": [
+    {
+      "schema_version": "release-evidence/v0",
+      "release_id": "spec-lane@0.7.0",
+      "source": {
+        "repo": "shiki-yusuke/spec-lane",
+        "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "tree_digest": "cccccccccccccccccccccccccccccccccccccccc",
+        "resolution": "git_tree"
+      },
+      "lane_ref": null,
+      "lane_ref_omitted": {
+        "code": "legacy_release_predates_contract",
+        "note": "composite fixture placeholder"
+      },
+      "review": null,
+      "review_omitted": {
+        "code": "legacy_release_predates_contract",
+        "note": "composite fixture placeholder"
+      },
+      "artifacts": [
+        {
+          "kind": "package",
+          "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "artifact_ref": {
+            "registry": "npm",
+            "package": "@shiki-yusuke/spec-lane",
+            "version": "0.7.0",
+            "verifiability": "requires_fetch"
+          }
+        }
+      ],
+      "build": {
+        "recipe_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "toolchain_digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+      },
+      "known_deviations": [],
+      "rollback": {
+        "previous_release_id": "spec-lane@0.6.0"
+      },
+      "integrity": {
+        "level": "digest_only",
+        "signature": null
+      }
+    }
+  ],
+  "receipt": {
+    "schema_version": "promotion-receipt/v0",
+    "receipt_id": "pr-composite-bdunresolved",
+    "evaluated_at": "2026-08-23T21:00:00Z",
+    "evaluation_phase": "pre_promotion",
+    "subject": {
+      "bundle_digest": "sha256:dead00dead00dead00dead00dead00dead00dead00dead00dead00dead00dead",
+      "selection_manifest_digest": "sha256:7777777777777777777777777777777777777777777777777777777777777777",
+      "target": "production"
+    },
+    "policy_digest": "sha256:8888888888888888888888888888888888888888888888888888888888888888",
+    "effective_risk": "medium",
+    "predicates": [
+      {
+        "predicate_id": "artifact_identity",
+        "applicability": "applicable",
+        "status": "satisfied",
+        "evidence_refs": [
+          {
+            "kind": "release_evidence",
+            "ref": "spec-lane@0.7.0",
+            "digest": "sha256:b7f0be414a5c004eef01975ccc3e2ccdc3bff47c064796543c9b2a82e19a198f"
+          }
+        ]
+      },
+      {
+        "predicate_id": "review_admissibility",
+        "applicability": "applicable",
+        "status": "satisfied",
+        "evidence_refs": [
+          {
+            "kind": "review_finding",
+            "ref": "rf-composite-fix-new#scope",
+            "digest": "sha256:9b73552bb18e05b92f92e9b8c39867950f78ff8b07506bd6f796c794d1cff00e"
+          }
+        ]
+      },
+      {
+        "predicate_id": "verification_coverage",
+        "applicability": "applicable",
+        "status": "satisfied",
+        "evidence_refs": [
+          {
+            "kind": "release_evidence",
+            "ref": "spec-lane@0.7.0",
+            "digest": "sha256:b7f0be414a5c004eef01975ccc3e2ccdc3bff47c064796543c9b2a82e19a198f"
+          }
+        ]
+      },
+      {
+        "predicate_id": "preview_verified",
+        "applicability": "not_applicable",
+        "status": "unknown",
+        "evidence_refs": []
+      },
+      {
+        "predicate_id": "rollback_target_valid",
+        "applicability": "applicable",
+        "status": "satisfied",
+        "evidence_refs": [
+          {
+            "kind": "review_finding",
+            "ref": "rf-composite-fix-old#F-01",
+            "digest": "sha256:c363d12dbfce8d434c2906cff13a335101277da2b619588eaea24043465b6fb1"
+          }
+        ]
+      },
+      {
+        "predicate_id": "privilege_boundary",
+        "applicability": "not_applicable",
+        "status": "unknown",
+        "evidence_refs": []
+      }
+    ],
+    "verdict": "ready_for_approval",
+    "semantic_digest": "sha256:70d28d13211fd20c48fc3f5b51f578a6da87a2130801105bd4f64bb64da319e3"
+  },
+  "approval_events": [
+    {
+      "schema_version": "release-approval/v0",
+      "kind": "approval_granted",
+      "subject": {
+        "receipt_digest": "sha256:bc701f1a7cc0de87981a2e09126ed36f47fbae75c120a3eada153cf82d9732b4",
+        "receipt_semantic_digest": "sha256:70d28d13211fd20c48fc3f5b51f578a6da87a2130801105bd4f64bb64da319e3",
+        "bundle_digest": "sha256:dead00dead00dead00dead00dead00dead00dead00dead00dead00dead00dead",
+        "selection_manifest_digest": "sha256:7777777777777777777777777777777777777777777777777777777777777777",
+        "target": "production"
+      },
+      "principal": {
+        "principal_id": "release-captain-04",
+        "issuer": "github-actions-oidc",
+        "role_snapshot": "release-approver"
+      },
+      "occurred_at": "2026-08-23T21:10:00Z",
+      "expires_at": "2026-08-24T21:10:00Z",
+      "event_id": "sha256:f5b6dc384983a6bf6a5565ef1eb6b40d6426b8ab34dcbfef643cbe8044faafd5"
+    }
+  ]
+}

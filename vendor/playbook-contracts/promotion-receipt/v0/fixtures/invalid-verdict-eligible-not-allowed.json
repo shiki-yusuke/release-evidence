@@ -1,0 +1,25 @@
+{
+  "schema_version": "promotion-receipt/v0",
+  "receipt_id": "pr-invalid-002",
+  "evaluated_at": "2026-08-23T15:10:00Z",
+  "evaluation_phase": "pre_promotion",
+  "subject": {
+    "bundle_digest": "sha256:aaaa555555555555555555555555555555555555555555555555555555555555",
+    "selection_manifest_digest": "sha256:bbbb555555555555555555555555555555555555555555555555555555555555",
+    "target": "production"
+  },
+  "policy_digest": "sha256:cccc555555555555555555555555555555555555555555555555555555555555",
+  "effective_risk": "low",
+  "semantic_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "predicates": [
+    {
+      "predicate_id": "artifact_identity",
+      "applicability": "applicable",
+      "status": "satisfied",
+      "evidence_refs": [
+        { "kind": "release_evidence", "ref": "spec-lane@0.7.0", "digest": "sha256:dddd555555555555555555555555555555555555555555555555555555555555" }
+      ]
+    }
+  ],
+  "verdict": "eligible"
+}

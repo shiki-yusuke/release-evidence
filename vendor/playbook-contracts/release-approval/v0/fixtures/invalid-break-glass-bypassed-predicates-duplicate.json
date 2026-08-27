@@ -1,0 +1,17 @@
+{
+  "schema_version": "release-approval/v0",
+  "event_id": "sha256:3636363636363636363636363636363636363636363636363636363636363636",
+  "kind": "break_glass_approve",
+  "subject": {
+    "receipt_digest": "sha256:3737373737373737373737373737373737373737373737373737373737373737",
+    "receipt_semantic_digest": "sha256:3838383838383838383838383838383838383838383838383838383838383838",
+    "bundle_digest": "sha256:3939393939393939393939393939393939393939393939393939393939393939",
+    "selection_manifest_digest": "sha256:3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a",
+    "target": "production"
+  },
+  "principal": { "principal_id": "sre-oncall-primary", "issuer": "pagerduty-oidc", "role_snapshot": "emergency-approver" },
+  "occurred_at": "2026-08-23T18:00:00Z",
+  "expires_at": "2026-08-23T20:00:00Z",
+  "bypassed_predicate_ids": ["privilege_boundary", "privilege_boundary"],
+  "incident_ref": "INC-2026-08-23-001"
+}

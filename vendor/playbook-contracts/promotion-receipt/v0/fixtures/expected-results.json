@@ -1,0 +1,30 @@
+{
+  "protocol_version": "promotion-receipt/v0",
+  "fixture_format_version": "1",
+  "description": "Machine-readable expected outcome for every fixture in this directory; verify-fixtures.mjs fails (non-zero exit) on any mismatch. Every fixture is one receipt, checked against promotion-receipt.schema.json plus the semantic MUSTs the schema alone cannot express: predicate-set completeness and always-applicable enforcement (R21), the structural half of resolvable-evidence-kind (R9), real-calendar-date validity, verdict derivation (R10), and semantic_digest recomputation (R12). subject.bundle_digest / subject.selection_manifest_digest / policy_digest / evidence_refs[].digest are syntactically valid placeholders here -- this contract's OWN verifier does not resolve them against a real bundle or a real review-findings record (that cross-record resolution, and the ACTUAL-resolution half of R9, is release-approval/v0's composite fixture's job, per TEST-06/TEST-09/TEST-12). semantic_digest IS recomputed by this verifier on every accept fixture.",
+  "fixtures": [
+    { "files": "accept-ready-for-approval-all-satisfied.json", "expected": "accept" },
+    { "files": "accept-ineligible-contradicted.json", "expected": "accept" },
+    { "files": "accept-abstained-unknown.json", "expected": "accept" },
+    { "files": "accept-post-deploy-readback.json", "expected": "accept" },
+
+    { "files": "invalid-predicate-human-release-approval.json", "expected": "reject", "reason_code": "not in enum" },
+    { "files": "invalid-verdict-eligible-not-allowed.json", "expected": "reject", "reason_code": "not in enum" },
+    { "files": "invalid-phase-predicate-mismatch.json", "expected": "reject", "reason_code": "not in enum" },
+    { "files": "invalid-not-applicable-status-not-unknown.json", "expected": "reject", "reason_code": "$.predicates[0].status" },
+    { "files": "invalid-satisfied-without-evidence-refs.json", "expected": "reject", "reason_code": "$.predicates[0].evidence_refs" },
+    { "files": "invalid-offset-timestamp.json", "expected": "reject", "reason_code": "$.evaluated_at" },
+    { "files": "invalid-additional-property-confidence.json", "expected": "reject", "reason_code": "additional property \"confidence\"" },
+    { "files": "invalid-predicate-missing.json", "expected": "reject", "reason_code": "predicate_missing" },
+    { "files": "invalid-predicate-duplicate.json", "expected": "reject", "reason_code": "predicate_duplicate" },
+    { "files": "invalid-predicate-always-on-not-applicable.json", "expected": "reject", "reason_code": "predicate_must_be_applicable" },
+    { "files": "invalid-predicate-all-not-applicable.json", "expected": "reject", "reason_code": "predicate_must_be_applicable" },
+    { "files": "invalid-post-deploy-readback-not-applicable.json", "expected": "reject", "reason_code": "predicate_must_be_applicable" },
+    { "files": "invalid-other-only-evidence-for-satisfied.json", "expected": "reject", "reason_code": "no_resolvable_evidence_kind" },
+    { "files": "invalid-evaluated-at-not-real-date.json", "expected": "reject", "reason_code": "invalid_calendar_timestamp" },
+
+    { "files": "reject-unknown-but-verdict-ready.json", "expected": "reject", "reason_code": "verdict_derivation_mismatch" },
+    { "files": "reject-contradicted-but-verdict-abstained.json", "expected": "reject", "reason_code": "verdict_derivation_mismatch" },
+    { "files": "reject-semantic-digest-tampered.json", "expected": "reject", "reason_code": "semantic_digest_mismatch" }
+  ]
+}

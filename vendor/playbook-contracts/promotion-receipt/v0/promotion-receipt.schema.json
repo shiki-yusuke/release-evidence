@@ -1,0 +1,176 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "promotion-receipt/v0 record",
+  "description": "DRAFT (draft_revision 1) -- NOT FROZEN. A promotion-receipt is a machine-evaluated, deterministic (zero LLM calls) verdict over every predicate EXCEPT human approval: 'ready_for_approval | ineligible | abstained'. It carries NO promotion authority by itself -- authority is release-approval/v0's event, which binds to this receipt's exact digest. Naming: this contract deliberately does NOT use the word 'decision' anywhere in its fields (see docs/protocols/promotion-receipt-v0.md) to avoid collision with the unrelated contracts/decision/v1 (a human design-decision record); this contract's outcome field is `verdict`. See docs/protocols/promotion-receipt-v0.md.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "receipt_id",
+    "evaluated_at",
+    "evaluation_phase",
+    "subject",
+    "policy_digest",
+    "effective_risk",
+    "semantic_digest",
+    "predicates",
+    "verdict"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "promotion-receipt/v0"
+    },
+    "receipt_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "evaluated_at": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+    },
+    "evaluation_phase": {
+      "enum": ["pre_promotion", "post_deploy"],
+      "description": "R11: which predicate_id closed set applies. pre_promotion and post_deploy predicates are never mixed in the same receipt (schema-enforced below)."
+    },
+    "subject": {
+      "type": "object",
+      "required": ["bundle_digest", "selection_manifest_digest", "target"],
+      "additionalProperties": false,
+      "properties": {
+        "bundle_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "description": "The release-evidence/v0 bundle this receipt evaluates. Not recomputed by THIS contract's own verifier (no bundle is carried alongside a bare receipt fixture) -- release-approval/v0's composite ledger fixture is where a receipt's subject.bundle_digest is cross-checked against a real bundle/approval chain."
+        },
+        "selection_manifest_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "description": "OPAQUE in v0: the selection-manifest contract this digest points at does not exist yet (open question in the source plan, sol Round 3). Consumers define its shape and how to recompute it; this contract only pins the value. See docs/protocols/promotion-receipt-v0.md caveat."
+        },
+        "target": {
+          "enum": ["preview", "staging", "production"]
+        }
+      }
+    },
+    "policy_digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "description": "Frozen at evaluation start, same as effective_risk (R4/sol Round 2: a receipt never re-derives risk or policy from its own evaluation result -- that would be a self-consistency loop)."
+    },
+    "effective_risk": {
+      "enum": ["low", "medium", "high"],
+      "description": "The value frozen AT THE START of this evaluation -- recorded, not recomputed from the verdict."
+    },
+    "semantic_digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "description": "R12: sha256 of the JCS canonical bytes of this receipt with evaluated_at, receipt_id, and semantic_digest itself removed. Recomputed by the verifier; a mismatch is rejected. Used for TOCTOU identity comparison -- time is deliberately excluded."
+    },
+    "predicates": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["predicate_id", "applicability", "status", "evidence_refs"],
+        "additionalProperties": false,
+        "properties": {
+          "predicate_id": {
+            "enum": [
+              "artifact_identity",
+              "review_admissibility",
+              "verification_coverage",
+              "preview_verified",
+              "rollback_target_valid",
+              "privilege_boundary",
+              "deployed_artifact_readback"
+            ],
+            "description": "R11 closed set (pre_promotion: artifact_identity, review_admissibility, verification_coverage, preview_verified, rollback_target_valid, privilege_boundary; post_deploy: deployed_artifact_readback). human_release_approval is deliberately absent from this enum -- it is never a predicate (R11), it is release-approval/v0's own event."
+          },
+          "applicability": {
+            "enum": ["applicable", "not_applicable"]
+          },
+          "status": {
+            "enum": ["satisfied", "contradicted", "unknown"]
+          },
+          "evidence_refs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["kind", "ref", "digest"],
+              "additionalProperties": false,
+              "properties": {
+                "kind": {
+                  "enum": ["review_finding", "release_evidence", "other"],
+                  "description": "review_finding: ref is \"<review-findings record_id>#<finding_id>\" (an actual finding in that record) or \"<record_id>#scope\" (only valid when that record's outcome is none_observed_in_recorded_scope); digest MUST equal the WHOLE record's JCS (RFC 8785) sha256 -- its record_digest, NOT subject.digest (R23 -- editing a finding's claim/severity/outcome changes record_digest even when subject.digest, bound to the scanned tree, stays the same; a finding recorded against a stale record_digest cannot back a predicate about the current content, TEST-12). release_evidence: ref is a release_id, digest is the release-evidence/v0 bundle's own JCS sha256 (resolved by digest against embedded bundles in release-approval/v0's composite fixture, not by release_id alone -- one release_id can have multiple attempts at different digests). other: opaque, this contract's verifier does not resolve it."
+                },
+                "ref": { "type": "string", "minLength": 1 },
+                "digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
+              }
+            }
+          },
+          "notes": { "type": "string", "minLength": 1 }
+        },
+        "allOf": [
+          {
+            "if": {
+              "required": ["applicability"],
+              "properties": { "applicability": { "const": "not_applicable" } }
+            },
+            "then": { "properties": { "status": { "const": "unknown" } } }
+          },
+          {
+            "if": {
+              "required": ["status"],
+              "properties": { "status": { "enum": ["satisfied", "contradicted"] } }
+            },
+            "then": { "properties": { "evidence_refs": { "minItems": 1 } } },
+            "else": {}
+          }
+        ]
+      }
+    },
+    "verdict": {
+      "enum": ["ready_for_approval", "ineligible", "abstained"],
+      "description": "R13: closed to exactly these three. 'eligible' and 'break_glass_authorized' do not exist in this schema at all -- eligible was Round-5-retired for an authority circularity (a receipt cannot itself grant promotion eligibility, only say 'ready for a human to approve'), and break-glass is release-approval/v0's own event kind, never a receipt verdict."
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": ["evaluation_phase"],
+        "properties": { "evaluation_phase": { "const": "pre_promotion" } }
+      },
+      "then": {
+        "properties": {
+          "predicates": {
+            "items": {
+              "properties": {
+                "predicate_id": {
+                  "enum": [
+                    "artifact_identity",
+                    "review_admissibility",
+                    "verification_coverage",
+                    "preview_verified",
+                    "rollback_target_valid",
+                    "privilege_boundary"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "predicates": {
+            "items": {
+              "properties": {
+                "predicate_id": { "enum": ["deployed_artifact_readback"] }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

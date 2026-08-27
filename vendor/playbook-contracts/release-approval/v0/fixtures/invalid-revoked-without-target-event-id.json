@@ -1,0 +1,14 @@
+{
+  "schema_version": "release-approval/v0",
+  "event_id": "sha256:0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
+  "kind": "approval_revoked",
+  "subject": {
+    "receipt_digest": "sha256:0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c",
+    "receipt_semantic_digest": "sha256:0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d",
+    "bundle_digest": "sha256:0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e",
+    "selection_manifest_digest": "sha256:0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f",
+    "target": "production"
+  },
+  "principal": { "principal_id": "release-captain-01", "issuer": "github-actions-oidc", "role_snapshot": "release-approver" },
+  "occurred_at": "2026-08-23T19:30:00Z"
+}

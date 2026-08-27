@@ -1,0 +1,15 @@
+{
+  "schema_version": "release-approval/v0",
+  "event_id": "sha256:1010101010101010101010101010101010101010101010101010101010101010",
+  "kind": "approval_rejected",
+  "subject": {
+    "receipt_digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    "receipt_semantic_digest": "sha256:1212121212121212121212121212121212121212121212121212121212121212",
+    "bundle_digest": "sha256:1313131313131313131313131313131313131313131313131313131313131313",
+    "selection_manifest_digest": "sha256:1414141414141414141414141414141414141414141414141414141414141414",
+    "target": "production"
+  },
+  "principal": { "principal_id": "release-captain-01", "issuer": "github-actions-oidc", "role_snapshot": "release-approver" },
+  "occurred_at": "2026-08-23T17:05:00Z",
+  "expires_at": "2026-08-24T17:00:00Z"
+}

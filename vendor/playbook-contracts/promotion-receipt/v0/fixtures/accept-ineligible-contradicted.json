@@ -1,0 +1,78 @@
+{
+  "schema_version": "promotion-receipt/v0",
+  "receipt_id": "pr-2026-08-23-002",
+  "evaluated_at": "2026-08-23T13:10:00Z",
+  "evaluation_phase": "pre_promotion",
+  "subject": {
+    "bundle_digest": "sha256:aaaa111111111111111111111111111111111111111111111111111111111111",
+    "selection_manifest_digest": "sha256:bbbb111111111111111111111111111111111111111111111111111111111111",
+    "target": "production"
+  },
+  "policy_digest": "sha256:cccc111111111111111111111111111111111111111111111111111111111111",
+  "effective_risk": "high",
+  "semantic_digest": "sha256:729d4eedc3156f54ae4fed3fb31c66cc0d9bd698a061dd1e0cd753d78f41c9a9",
+  "predicates": [
+    {
+      "predicate_id": "artifact_identity",
+      "applicability": "applicable",
+      "status": "contradicted",
+      "evidence_refs": [
+        {
+          "kind": "release_evidence",
+          "ref": "spec-lane@0.7.1",
+          "digest": "sha256:dddd111111111111111111111111111111111111111111111111111111111111"
+        }
+      ],
+      "notes": "tree_digest recorded in the bundle does not match the merged commit's actual tree"
+    },
+    {
+      "predicate_id": "review_admissibility",
+      "applicability": "applicable",
+      "status": "satisfied",
+      "evidence_refs": [
+        {
+          "kind": "review_finding",
+          "ref": "rf-2026-08-23-003#scope",
+          "digest": "sha256:3333333333333333333333333333333333333333333333333333333333333333"
+        }
+      ]
+    },
+    {
+      "predicate_id": "verification_coverage",
+      "applicability": "applicable",
+      "status": "satisfied",
+      "evidence_refs": [
+        {
+          "kind": "release_evidence",
+          "ref": "spec-lane@0.7.1",
+          "digest": "sha256:dddd111111111111111111111111111111111111111111111111111111111111"
+        }
+      ]
+    },
+    {
+      "predicate_id": "preview_verified",
+      "applicability": "not_applicable",
+      "status": "unknown",
+      "evidence_refs": []
+    },
+    {
+      "predicate_id": "rollback_target_valid",
+      "applicability": "applicable",
+      "status": "satisfied",
+      "evidence_refs": [
+        {
+          "kind": "release_evidence",
+          "ref": "spec-lane@0.6.0",
+          "digest": "sha256:eeee111111111111111111111111111111111111111111111111111111111111"
+        }
+      ]
+    },
+    {
+      "predicate_id": "privilege_boundary",
+      "applicability": "not_applicable",
+      "status": "unknown",
+      "evidence_refs": []
+    }
+  ],
+  "verdict": "ineligible"
+}

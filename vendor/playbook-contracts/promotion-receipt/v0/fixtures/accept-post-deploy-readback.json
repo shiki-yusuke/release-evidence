@@ -1,0 +1,29 @@
+{
+  "schema_version": "promotion-receipt/v0",
+  "receipt_id": "pr-2026-08-23-004",
+  "evaluated_at": "2026-08-23T14:00:00Z",
+  "evaluation_phase": "post_deploy",
+  "subject": {
+    "bundle_digest": "sha256:aaaa333333333333333333333333333333333333333333333333333333333333",
+    "selection_manifest_digest": "sha256:bbbb333333333333333333333333333333333333333333333333333333333333",
+    "target": "production"
+  },
+  "policy_digest": "sha256:cccc333333333333333333333333333333333333333333333333333333333333",
+  "effective_risk": "low",
+  "semantic_digest": "sha256:5150f1fd850fafddabe1cac93ac7c72501a86b5a38ca83c023bb893b80b47f33",
+  "predicates": [
+    {
+      "predicate_id": "deployed_artifact_readback",
+      "applicability": "applicable",
+      "status": "satisfied",
+      "evidence_refs": [
+        {
+          "kind": "release_evidence",
+          "ref": "agent-metrics-dashboard@32572501427-1",
+          "digest": "sha256:dddd333333333333333333333333333333333333333333333333333333333333"
+        }
+      ]
+    }
+  ],
+  "verdict": "ready_for_approval"
+}

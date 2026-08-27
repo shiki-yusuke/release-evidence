@@ -10,14 +10,17 @@
   },
   "packageManager": "pnpm@10.28.2",
   "bin": {
-    "release-evidence": "./dist/src/cli/main.js"
+    "release-evidence": "./dist/src/cli/main.js",
+    "release-evidence-shadow": "./dist/src/shadow-cli/main.js"
   },
   "imports": {
-    "#vendor/*": "./vendor/playbook-shared/*"
+    "#vendor/*": "./vendor/playbook-shared/*",
+    "#contracts/*": "./vendor/playbook-contracts/*"
   },
   "files": [
     "dist",
     "vendor/playbook-shared",
+    "vendor/playbook-contracts",
     "README.md"
   ],
   "scripts": {

@@ -1,0 +1,155 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "release-approval/v0 event",
+  "description": "DRAFT (draft_revision 1) -- NOT FROZEN. One append-only ledger event of the ONLY promotion authority in the Evidence-Closed Delivery Authority DAG: a human (or an authorized emergency principal, break_glass_approve) binding exact digests -- receipt, its own semantic content, the release bundle, the selection manifest, and the target -- to an approval/rejection/revocation. No kind is exempt from this exact binding (R14); no verdict in promotion-receipt/v0 can substitute for it, and human_release_approval never appears as a predicate there. See docs/protocols/release-approval-v0.md.",
+  "type": "object",
+  "required": ["schema_version", "event_id", "kind", "subject", "principal", "occurred_at"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "release-approval/v0"
+    },
+    "event_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "R18: recomputed by the verifier as sha256(JCS(event without event_id)) -- same event_id convention as release-evidence/v0. A declared value that does not match is rejected; a duplicate event_id within one ledger fixture is rejected."
+    },
+    "kind": {
+      "enum": ["approval_granted", "approval_rejected", "approval_revoked", "break_glass_approve"]
+    },
+    "subject": {
+      "type": "object",
+      "required": ["receipt_digest", "receipt_semantic_digest", "bundle_digest", "selection_manifest_digest", "target"],
+      "additionalProperties": false,
+      "properties": {
+        "receipt_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "description": "R19: the JCS sha256 of the WHOLE promotion-receipt object this event approves/rejects/revokes/bypasses. Checked, in a composite ledger fixture, against the real receipt included in that fixture -- a value that resolves to no receipt in the fixture is rejected (TEST-06)."
+        },
+        "receipt_semantic_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "description": "The receipt's own semantic_digest (R12) at approval time -- carried separately from receipt_digest because TOCTOU compares semantic content (time-excluded), not the whole-object digest."
+        },
+        "bundle_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "description": "R19: must equal the referenced receipt's own subject.bundle_digest. A different value is a stale approval binding (TEST-05) -- e.g. the bundle was replaced by a new attempt after this approval's receipt was evaluated."
+        },
+        "selection_manifest_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "target": {
+          "enum": ["preview", "staging", "production"]
+        }
+      },
+      "description": "R14: every kind carries this same exact-binding subject shape -- no kind is exempt, including break_glass_approve (R16)."
+    },
+    "principal": {
+      "type": "object",
+      "required": ["principal_id", "issuer", "role_snapshot"],
+      "additionalProperties": false,
+      "properties": {
+        "principal_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+          "description": "R17: pseudonymous by construction -- the pattern rejects '@' and whitespace at the schema level, so an email address or a free-text human name cannot be written here even before the personal-dimension scan runs."
+        },
+        "issuer": {
+          "type": "string",
+          "minLength": 1
+        },
+        "role_snapshot": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "occurred_at": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+    },
+    "expires_at": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$",
+      "description": "R15: required on approval_granted and break_glass_approve (schema-enforced below), forbidden otherwise."
+    },
+    "revoked_approval_event_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "approval_revoked only (schema-enforced below): the exact event_id being revoked."
+    },
+    "bypassed_predicate_ids": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "artifact_identity",
+          "review_admissibility",
+          "verification_coverage",
+          "preview_verified",
+          "rollback_target_valid",
+          "privilege_boundary",
+          "deployed_artifact_readback"
+        ]
+      },
+      "description": "break_glass_approve only (schema-enforced below): a non-empty, duplicate-free subset of promotion-receipt/v0's own predicate_id closed set -- the exact predicates this emergency approval bypasses. Never human_release_approval (not a member of that set at all). A composite ledger fixture additionally requires every id here to actually appear among the referenced receipt's own predicates[] -- bypassing a predicate the receipt never evaluated is meaningless (checked by verify-fixtures.mjs, not expressible in this single-event schema)."
+    },
+    "incident_ref": {
+      "type": "string",
+      "minLength": 1,
+      "description": "break_glass_approve only (schema-enforced below)."
+    },
+    "recorded_after_side_effect": {
+      "type": "boolean",
+      "description": "break_glass_approve only, optional: true when the ledger append happened after the promotion side effect already occurred (ledger unavailable at the time) -- the event stays honestly marked rather than backdated."
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": ["kind"],
+        "properties": { "kind": { "enum": ["approval_granted", "break_glass_approve"] } }
+      },
+      "then": { "required": ["expires_at"] },
+      "else": { "not": { "required": ["expires_at"] } }
+    },
+    {
+      "if": {
+        "required": ["kind"],
+        "properties": { "kind": { "const": "approval_revoked" } }
+      },
+      "then": { "required": ["revoked_approval_event_id"] },
+      "else": { "not": { "required": ["revoked_approval_event_id"] } }
+    },
+    {
+      "if": {
+        "required": ["kind"],
+        "properties": { "kind": { "const": "break_glass_approve" } }
+      },
+      "then": { "required": ["bypassed_predicate_ids", "incident_ref"] },
+      "else": {
+        "not": { "required": ["bypassed_predicate_ids"] }
+      }
+    },
+    {
+      "if": {
+        "required": ["kind"],
+        "properties": { "kind": { "const": "break_glass_approve" } }
+      },
+      "then": {},
+      "else": { "not": { "required": ["incident_ref"] } }
+    },
+    {
+      "if": {
+        "required": ["kind"],
+        "properties": { "kind": { "const": "break_glass_approve" } }
+      },
+      "then": {},
+      "else": { "not": { "required": ["recorded_after_side_effect"] } }
+    }
+  ]
+}

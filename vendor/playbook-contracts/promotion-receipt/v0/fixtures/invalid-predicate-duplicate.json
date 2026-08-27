@@ -1,0 +1,83 @@
+{
+  "schema_version": "promotion-receipt/v0",
+  "receipt_id": "pr-invalid-009",
+  "evaluated_at": "2026-08-23T17:00:00Z",
+  "evaluation_phase": "pre_promotion",
+  "subject": {
+    "bundle_digest": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+    "selection_manifest_digest": "sha256:3434343434343434343434343434343434343434343434343434343434343434",
+    "target": "production"
+  },
+  "policy_digest": "sha256:3535353535353535353535353535353535353535353535353535353535353535",
+  "effective_risk": "medium",
+  "predicates": [
+    {
+      "predicate_id": "artifact_identity",
+      "applicability": "applicable",
+      "status": "satisfied",
+      "evidence_refs": [
+        {
+          "kind": "release_evidence",
+          "ref": "spec-lane@0.7.0",
+          "digest": "sha256:d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1"
+        }
+      ]
+    },
+    {
+      "predicate_id": "review_admissibility",
+      "applicability": "applicable",
+      "status": "satisfied",
+      "evidence_refs": [
+        {
+          "kind": "review_finding",
+          "ref": "rf-2026-08-23-003#scope",
+          "digest": "sha256:3333333333333333333333333333333333333333333333333333333333333333"
+        }
+      ]
+    },
+    {
+      "predicate_id": "verification_coverage",
+      "applicability": "applicable",
+      "status": "satisfied",
+      "evidence_refs": [
+        {
+          "kind": "release_evidence",
+          "ref": "spec-lane@0.7.0",
+          "digest": "sha256:d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1"
+        }
+      ]
+    },
+    {
+      "predicate_id": "preview_verified",
+      "applicability": "not_applicable",
+      "status": "unknown",
+      "evidence_refs": []
+    },
+    {
+      "predicate_id": "rollback_target_valid",
+      "applicability": "applicable",
+      "status": "satisfied",
+      "evidence_refs": [
+        {
+          "kind": "release_evidence",
+          "ref": "spec-lane@0.6.0",
+          "digest": "sha256:e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1"
+        }
+      ]
+    },
+    {
+      "predicate_id": "artifact_identity",
+      "applicability": "applicable",
+      "status": "satisfied",
+      "evidence_refs": [
+        {
+          "kind": "release_evidence",
+          "ref": "spec-lane@0.7.0",
+          "digest": "sha256:d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1"
+        }
+      ]
+    }
+  ],
+  "verdict": "ready_for_approval",
+  "semantic_digest": "sha256:031a471ae1fe291db23733128bd4a01818639e5c6e7189eb086d6d9b9292199b"
+}

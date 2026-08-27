@@ -1,0 +1,205 @@
+{
+  "schema_version": "shadow-evaluation-input/v0",
+  "evaluation_cut": "2026-08-27T00:00:00Z",
+  "policy": {
+    "digest": null,
+    "absent_reason": {
+      "code": "policy_snapshot_absent",
+      "note": "synthetic replay pack -- no real policy snapshot exists for this scenario"
+    },
+    "effective_risk": "medium"
+  },
+  "contract_pin": {
+    "playbook_commit": "f9f0c127588f60fd299a02859c9f70f0b81a9dcc"
+  },
+  "subject": {
+    "bundle_digest": "sha256:64a1300fcfcb47fa1e1cbd0fe54cf5ee9a8a86eb2c042740e4c5f18c43b404d3",
+    "selection_manifest_digest": "sha256:10b36f5bd5ae7cde99a3f19142f5d083c385f84e453058de6af34197d9f30244",
+    "target": "production",
+    "review_finding_digest": "sha256:d1e130f334fa267c1c86610b087b84cedecf86df4a2ba37a2898ad4edeee1b53",
+    "rollback_previous_bundle_digest": "sha256:50ff9ae5b06ebe39104fa916eac3eb38ba661789fe2edb3dcb63fb9dd6030c33"
+  },
+  "records": [
+    {
+      "kind": "selection_manifest",
+      "digest": "sha256:10b36f5bd5ae7cde99a3f19142f5d083c385f84e453058de6af34197d9f30244",
+      "content": {
+        "manifest_id": "sm-replay-lane-backed"
+      }
+    },
+    {
+      "kind": "release_evidence_bundle",
+      "digest": "sha256:64a1300fcfcb47fa1e1cbd0fe54cf5ee9a8a86eb2c042740e4c5f18c43b404d3",
+      "content": {
+        "schema_version": "release-evidence/v0",
+        "release_id": "spec-lane@0.7.0",
+        "source": {
+          "repo": "shiki-yusuke/spec-lane",
+          "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "tree_digest": "cccccccccccccccccccccccccccccccccccccccc",
+          "resolution": "git_tree"
+        },
+        "lane_ref": {
+          "lane_id": "lane-1",
+          "intent_digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+          "spec_digest": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+          "consensus_ack_digest": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+          "verification_digest": "sha256:97be4ac9d95bf95da08c6d9ae4031f42d90848544bba88dc3db72d16863d8f2e"
+        },
+        "review": {
+          "pr": 42,
+          "head_sha": "dddddddddddddddddddddddddddddddddddddddd",
+          "decision": "approved"
+        },
+        "artifacts": [
+          {
+            "kind": "package",
+            "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "artifact_ref": {
+              "registry": "npm",
+              "package": "@shiki-yusuke/spec-lane",
+              "version": "0.7.0",
+              "verifiability": "requires_fetch"
+            }
+          }
+        ],
+        "build": {
+          "recipe_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "toolchain_digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        },
+        "known_deviations": [],
+        "rollback": {
+          "previous_release_id": "spec-lane@0.6.0"
+        },
+        "integrity": {
+          "level": "digest_only",
+          "signature": null
+        }
+      }
+    },
+    {
+      "kind": "verification_record",
+      "digest": "sha256:97be4ac9d95bf95da08c6d9ae4031f42d90848544bba88dc3db72d16863d8f2e",
+      "content": {
+        "schema_version": "verification-record/v0",
+        "verification_id": "replay-lane-backed-v1"
+      }
+    },
+    {
+      "kind": "release_evidence_bundle",
+      "digest": "sha256:50ff9ae5b06ebe39104fa916eac3eb38ba661789fe2edb3dcb63fb9dd6030c33",
+      "content": {
+        "schema_version": "release-evidence/v0",
+        "release_id": "spec-lane@0.6.0",
+        "source": {
+          "repo": "shiki-yusuke/spec-lane",
+          "commit_sha": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "tree_digest": "ffffffffffffffffffffffffffffffffffffffff",
+          "resolution": "git_tree"
+        },
+        "lane_ref": null,
+        "lane_ref_omitted": {
+          "code": "legacy_release_predates_contract",
+          "note": "prior attempt, predates lane pointer chain fixture"
+        },
+        "review": null,
+        "review_omitted": {
+          "code": "legacy_release_predates_contract",
+          "note": "prior attempt, predates review-finding pointer chain fixture"
+        },
+        "artifacts": [
+          {
+            "kind": "package",
+            "digest": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
+            "artifact_ref": {
+              "registry": "npm",
+              "package": "@shiki-yusuke/spec-lane",
+              "version": "0.6.0",
+              "verifiability": "requires_fetch"
+            }
+          }
+        ],
+        "build": {
+          "recipe_digest": "sha256:8888888888888888888888888888888888888888888888888888888888888888",
+          "toolchain_digest": "sha256:7777777777777777777777777777777777777777777777777777777777777777"
+        },
+        "known_deviations": [],
+        "rollback": {
+          "previous_release_id": null
+        },
+        "integrity": {
+          "level": "digest_only",
+          "signature": null
+        }
+      }
+    },
+    {
+      "kind": "review_finding_record",
+      "digest": "sha256:d1e130f334fa267c1c86610b087b84cedecf86df4a2ba37a2898ad4edeee1b53",
+      "content": {
+        "schema_version": "review-findings/v1",
+        "record_id": "rf-replay-lane-backed",
+        "recorded_at": "2026-08-27T00:00:00Z",
+        "supersedes_record_id": null,
+        "subject": {
+          "repository_ref": "shiki-yusuke/spec-lane",
+          "digest": "sha256:5555555555555555555555555555555555555555555555555555555555555555"
+        },
+        "scan_scope": {
+          "paths": [
+            "**/*"
+          ],
+          "commit_range": {
+            "base": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "head": "cccccccccccccccccccccccccccccccccccccccc"
+          },
+          "lenses": [
+            "correctness"
+          ]
+        },
+        "assessor": {
+          "kind": "deterministic_tool",
+          "model_cohort": null,
+          "independence": {
+            "code": "different_provider",
+            "params": {}
+          }
+        },
+        "outcome": "none_observed_in_recorded_scope",
+        "abstention": null,
+        "findings": []
+      },
+      "observed_at": "2026-08-27T00:00:00Z"
+    },
+    {
+      "kind": "release_event",
+      "digest": "sha256:85682da6fceed9f3ab28273f15bf507cb1618a871640c72684f461d6171b36a0",
+      "content": {
+        "schema_version": "release-evidence/v0",
+        "event_id": "evt-replay-lane-backed-verified-preview",
+        "release_id": "spec-lane@0.7.0",
+        "kind": "verified",
+        "environment": "preview",
+        "occurred_at": "2026-08-27T00:00:00Z",
+        "actor": "ci",
+        "bundle_digest": "sha256:64a1300fcfcb47fa1e1cbd0fe54cf5ee9a8a86eb2c042740e4c5f18c43b404d3"
+      },
+      "observed_at": "2026-08-27T00:00:00Z"
+    },
+    {
+      "kind": "release_event",
+      "digest": "sha256:738bb893236ac9cbce12730d2bf52497990f1a25f17acb8713498f69e640ee50",
+      "content": {
+        "schema_version": "release-evidence/v0",
+        "event_id": "evt-replay-lane-backed-prev-deployed-production",
+        "release_id": "spec-lane@0.6.0",
+        "kind": "deployed",
+        "environment": "production",
+        "occurred_at": "2026-08-27T00:00:00Z",
+        "actor": "ci",
+        "bundle_digest": "sha256:50ff9ae5b06ebe39104fa916eac3eb38ba661789fe2edb3dcb63fb9dd6030c33"
+      },
+      "observed_at": "2026-08-27T00:00:00Z"
+    }
+  ]
+}

@@ -1,0 +1,77 @@
+{
+  "schema_version": "promotion-receipt/v0",
+  "receipt_id": "pr-reject-002",
+  "evaluated_at": "2026-08-23T16:20:00Z",
+  "evaluation_phase": "pre_promotion",
+  "subject": {
+    "bundle_digest": "sha256:d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2",
+    "selection_manifest_digest": "sha256:b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+    "target": "production"
+  },
+  "policy_digest": "sha256:c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2",
+  "effective_risk": "high",
+  "predicates": [
+    {
+      "predicate_id": "artifact_identity",
+      "applicability": "applicable",
+      "status": "contradicted",
+      "evidence_refs": [
+        {
+          "kind": "release_evidence",
+          "ref": "spec-lane@0.7.0",
+          "digest": "sha256:d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1"
+        }
+      ]
+    },
+    {
+      "predicate_id": "review_admissibility",
+      "applicability": "applicable",
+      "status": "satisfied",
+      "evidence_refs": [
+        {
+          "kind": "review_finding",
+          "ref": "rf-2026-08-23-003#scope",
+          "digest": "sha256:3333333333333333333333333333333333333333333333333333333333333333"
+        }
+      ]
+    },
+    {
+      "predicate_id": "verification_coverage",
+      "applicability": "applicable",
+      "status": "satisfied",
+      "evidence_refs": [
+        {
+          "kind": "release_evidence",
+          "ref": "spec-lane@0.7.0",
+          "digest": "sha256:d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1"
+        }
+      ]
+    },
+    {
+      "predicate_id": "preview_verified",
+      "applicability": "not_applicable",
+      "status": "unknown",
+      "evidence_refs": []
+    },
+    {
+      "predicate_id": "rollback_target_valid",
+      "applicability": "applicable",
+      "status": "satisfied",
+      "evidence_refs": [
+        {
+          "kind": "release_evidence",
+          "ref": "spec-lane@0.6.0",
+          "digest": "sha256:e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1"
+        }
+      ]
+    },
+    {
+      "predicate_id": "privilege_boundary",
+      "applicability": "not_applicable",
+      "status": "unknown",
+      "evidence_refs": []
+    }
+  ],
+  "verdict": "abstained",
+  "semantic_digest": "sha256:70bb1d5a24a9ea41d24024dfc3e2995a9111c4e7b24b8313c113f36df8d3b899"
+}

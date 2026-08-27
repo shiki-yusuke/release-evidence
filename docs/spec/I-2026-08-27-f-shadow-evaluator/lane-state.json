@@ -1,0 +1,103 @@
+{
+  "schema_version": "3.0",
+  "intent_id": "I-2026-08-27-f-shadow-evaluator",
+  "tracker_url": null,
+  "pr_url": null,
+  "pr_provenance": null,
+  "owner": "shiki-yusuke",
+  "current_phase": "4_verify",
+  "status": "running",
+  "created_at": "2026-08-26T20:07:15.698Z",
+  "updated_at": "2026-08-27T00:12:13.034Z",
+  "phase_history": [
+    {
+      "phase": "1_intent",
+      "started_at": "2026-08-26T20:07:15.698Z",
+      "ended_at": "2026-08-26T20:08:43.339Z",
+      "result": "completed",
+      "retry_count": 0
+    },
+    {
+      "phase": "2_spec",
+      "started_at": "2026-08-26T20:08:43.339Z",
+      "ended_at": "2026-08-26T20:08:43.419Z",
+      "result": "completed",
+      "retry_count": 0
+    },
+    {
+      "phase": "3_implement",
+      "started_at": "2026-08-26T20:08:43.419Z",
+      "result": "completed",
+      "retry_count": 0,
+      "ended_at": "2026-08-27T00:12:13.034Z"
+    },
+    {
+      "phase": "4_verify",
+      "started_at": "2026-08-27T00:12:13.034Z",
+      "result": "in_progress",
+      "retry_count": 0
+    }
+  ],
+  "halt_info": null,
+  "retry_log": [],
+  "effective_risk_log": [
+    {
+      "gate_id": "phase_advance",
+      "effective_risk": "high",
+      "applied_rule_ids": [
+        "ci-workflow-touch"
+      ],
+      "profile_digest": "d72951e0e685b0a1e0ea7d370fbce3e7f45f8e549d28657a123735486c2c88ca",
+      "evaluated_at": "2026-08-26T20:08:43.339Z"
+    },
+    {
+      "gate_id": "phase_advance",
+      "effective_risk": "high",
+      "applied_rule_ids": [
+        "ci-workflow-touch"
+      ],
+      "profile_digest": "d72951e0e685b0a1e0ea7d370fbce3e7f45f8e549d28657a123735486c2c88ca",
+      "evaluated_at": "2026-08-26T20:08:43.419Z"
+    },
+    {
+      "gate_id": "validate",
+      "effective_risk": "high",
+      "applied_rule_ids": [
+        "ci-workflow-touch"
+      ],
+      "profile_digest": "d72951e0e685b0a1e0ea7d370fbce3e7f45f8e549d28657a123735486c2c88ca",
+      "evaluated_at": "2026-08-27T00:12:12.940Z"
+    },
+    {
+      "gate_id": "phase_advance",
+      "effective_risk": "high",
+      "applied_rule_ids": [
+        "ci-workflow-touch"
+      ],
+      "profile_digest": "d72951e0e685b0a1e0ea7d370fbce3e7f45f8e549d28657a123735486c2c88ca",
+      "evaluated_at": "2026-08-27T00:12:13.034Z"
+    }
+  ],
+  "mode_resolution_log": [],
+  "cost_ledger": [],
+  "usage_import_attempts": [],
+  "usage_import_gate_overrides": [],
+  "gate_ruleset_version": "1.0",
+  "gate_snapshots": {
+    "premise_evidence": {
+      "method": "data",
+      "reproduced": true,
+      "recorded_at": "2026-08-26T20:08:43.339Z"
+    },
+    "success_criteria": {
+      "criteria": [
+        "release-evidence-shadow replay が実 release corpus に対して決定論的に走る（同一入力を別プロセスで2回実行し出力 byte 一致）",
+        "pre_promotion 述語6種すべてが実装され、解決できない場合は明示的 unknown + closed reason code になる（黙って satisfied にしない）",
+        "shadow 出力自身が evidence-closed（input_manifest digest と record_digest を pipeline 外の独立再計算で検証できる）",
+        "live 化の構造的防止が機械検証される（mode=shadow_only / verdict による非0 exit なし / cohort-2-live-lock.json 有効時に deploy・gate 系から shadow module への import が1件でもあればテストが fail）",
+        "conformance parity（vendored 契約 fixtures）+ 改ざん注入 + 決定論の3系統のテストが全部 green"
+      ],
+      "recorded_at": "2026-08-27T00:12:13.034Z"
+    }
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "protocol_version": "review-findings/v1",
+  "fixture_format_version": "1",
+  "description": "Machine-readable expected outcome for every fixture in this directory; verify-fixtures.mjs fails (non-zero exit) on any mismatch. Every fixture is one record, checked against review-findings.schema.json plus the semantic MUSTs the schema alone cannot express: finding_id uniqueness within the record, the numeric-confidence scan over the open {code,params} bags, and the personal-dimension scan. All digests here are syntactically valid but NOT recomputed by this verifier (review-findings/v1 has no bundle-style artifact to recompute a digest from -- unlike promotion-receipt/v0's semantic_digest or release-approval/v0's event_id, which ARE recomputed).",
+  "fixtures": [
+    { "files": "accept-findings-observed-human.json", "expected": "accept" },
+    { "files": "accept-findings-observed-model-multi.json", "expected": "accept" },
+    { "files": "accept-none-observed.json", "expected": "accept" },
+    { "files": "accept-abstained.json", "expected": "accept" },
+
+    { "files": "invalid-none-observed-empty-paths.json", "expected": "reject", "reason_code": "array length 0 < minItems 1" },
+    { "files": "invalid-none-observed-empty-lenses.json", "expected": "reject", "reason_code": "array length 0 < minItems 1" },
+    { "files": "invalid-findings-observed-empty-findings.json", "expected": "reject", "reason_code": "array length 0 < minItems 1" },
+    { "files": "invalid-findings-observed-with-abstention.json", "expected": "reject", "reason_code": "$.abstention" },
+    { "files": "invalid-abstained-missing-abstention.json", "expected": "reject", "reason_code": "$.abstention" },
+    { "files": "invalid-assessor-model-cohort-null.json", "expected": "reject", "reason_code": "$.assessor.model_cohort" },
+    { "files": "invalid-assessor-human-cohort-present.json", "expected": "reject", "reason_code": "$.assessor.model_cohort" },
+    { "files": "invalid-severity-not-in-enum.json", "expected": "reject", "reason_code": "not in enum" },
+    { "files": "invalid-category-not-in-enum.json", "expected": "reject", "reason_code": "not in enum" },
+    { "files": "invalid-location-zero-line.json", "expected": "reject", "reason_code": "$.findings[0].locations[0].start_line" },
+    { "files": "invalid-required-verdict-not-proven.json", "expected": "reject", "reason_code": "expected const" },
+    { "files": "invalid-offset-timestamp.json", "expected": "reject", "reason_code": "$.recorded_at" },
+    { "files": "invalid-additional-property-confidence.json", "expected": "reject", "reason_code": "additional property \"confidence\"" },
+    { "files": "invalid-recorded-at-not-real-date.json", "expected": "reject", "reason_code": "invalid_calendar_timestamp" },
+    { "files": "invalid-location-line-partial.json", "expected": "reject", "reason_code": "location_line_partial" },
+    { "files": "invalid-location-line-order.json", "expected": "reject", "reason_code": "location_line_order" },
+
+    { "files": "reject-duplicate-finding-id.json", "expected": "reject", "reason_code": "duplicate_finding_id" },
+    { "files": "reject-numeric-confidence-in-params.json", "expected": "reject", "reason_code": "numeric_confidence_forbidden_field" },
+    { "files": "reject-personal-dimension-in-params.json", "expected": "reject", "reason_code": "personal_dimension_forbidden_key" }
+  ]
+}
