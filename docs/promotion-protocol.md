@@ -38,11 +38,15 @@ Every write is one commit on the ledger ref, made by `casCommit` (`src/promotion
    provider time) are fetched again inside the callback on every attempt — `finalize`'s poll
    only waits for a terminal state, the values written come from the callback;
 3. a single-parent commit (parent = fetched head) built with `hash-object`/`mktree`/`commit-tree`
-   (the working tree is never touched);
+   (the working tree is never touched). Its message ends with a `Promotion-Cas-Nonce: <hex>`
+   trailer, 16 random bytes per `casCommit` call: two processes that fold the same head with the
+   same provider time, inputs and git dates would otherwise build the byte-identical commit, and
+   the loser of the lease would find "its" OID on the remote;
 4. `git push --force-with-lease=<ref>:<fetched head>`. A non-zero push is classified after a
    re-fetch of the ref, never retried blindly:
-   - **landed** — our commit is the remote head or on its first-parent chain (git failed after
-     the ref moved): treated as a successful push, continue with 5;
+   - **landed** — our commit **OID** is the remote head or on its first-parent chain (git failed
+     after the ref moved): treated as a successful push, continue with 5. The same tree or the
+     same events under another OID is someone else's commit, never ours;
    - **lease rejected** — not landed and git reported `stale info` / `[rejected]` /
      `fetch first` / `non-fast-forward`, or the remote's own ref-transaction compare failed for a
      push racing past the advertisement (`cannot lock ref '<ref>': reference already exists` /
@@ -123,8 +127,11 @@ reads as `locked: true, reasons: ["ledger_invalid"]`).
 
 ## 7. Send and crash windows
 
-`send` = CAS(`effect_send`) → one POST `/pages/deployments` → CAS(`effect_requested`). Once
-`effect_send` landed, no path POSTs again: a rerun of `send` is exit 3. Timeout / network error /
+`send` = CAS(`effect_send`) → re-read of the ledger → one POST `/pages/deployments` →
+CAS(`effect_requested`). The `effect_send` `event_id` also covers the CAS call's nonce, and
+before the POST `send` re-reads the remote ledger and requires the promotion's `effect_send` to be
+exactly the line it wrote (same `event_id`); otherwise exit 3 and no POST. Once `effect_send`
+landed, no path POSTs again: a rerun of `send` is exit 3. Timeout / network error /
 5xx / id-less 2xx = `effect_requested(deployment_id: null, response_observed: false)`, exit 6; a
 4xx is `deployment_id: null, response_observed: true`, exit 6. If the process dies between any two
 steps, the promotion stays open (locked) until `reconcile`.
@@ -132,8 +139,37 @@ steps, the promotion stays open (locked) until `reconcile`.
 The Pages artifact is the executor attempt's own: name
 `github-pages-<executor.run_id>-<executor.run_attempt>`, exactly one in
 `listRunArtifacts(executor.run_id)`, `expired=false`, `workflow_run.id = executor.run_id`, its id
-= `--pages-artifact-id` and its digest = the archive bytes. `effect_send.pages_artifact` records
-`{id, name, archive_digest}`; an artifact of another attempt of the same executor run is refused.
+= `--pages-artifact-id` and its digest = the archive bytes. An artifact of another attempt of the
+same executor run is refused.
+
+Name, owner run and API digest say nothing about *what* is served, so before the `effect_send`
+CAS `send` also reads those same archive bytes the way `actions/upload-pages-artifact` lays them
+out — a zip with a top-level `artifact.tar` (uncompressed tar, ≤ 256 MiB) — extracts the tar into
+a temporary directory (always removed) and recomputes the content manifest with
+`src/manifest/manifest.ts` (`release-manifest.json` excluded as usual). It must equal
+`authorized.resolved.source_artifact.content_manifest_digest`; otherwise exit 3, nothing written,
+no POST. The tar reader (`src/promotion/tar.ts`) accepts ustar / GNU headers with valid checksums,
+GNU long names (`L`) and pax `path` (`x`), regular files and directories only; symlinks, hard
+links, devices, unknown typeflags, `..` / absolute / backslash paths, duplicates, size overruns
+and a malformed end of archive are refused.
+
+Entry names must read the same in every common decoder (bsdtar, GNU tar, Python `tarfile`), so
+each entry has exactly **one** name source. The nominal precedence is pax `path` > GNU long name
+(`L`) > ustar `prefix`/`name`, but a mixture is not resolved by it — it is refused (exit 3):
+an entry carrying both an `L` and a pax `path` (in either order); a pax global header (`g`); a
+GNU long link name (`K`); two `L` or two `x` headers for one entry; an `L` / `x` not followed by
+a regular file or directory entry; a pax key repeated within one header. An `L` alone, an `x`
+alone, or an `L` with a path-less `x` (e.g. only `mtime`) name the entry as usual. Names (tar
+header fields, `L` bodies, pax records and zip entry names alike) are decoded as strict UTF-8
+with the BOM kept (`TextDecoder(..., { fatal: true, ignoreBOM: true })`): invalid UTF-8 is
+refused, and a name containing U+FEFF is refused rather than silently stripped.
+
+Artifact ids (source / evidence / Pages) are kept as decimal strings and compared as strings.
+`authorize` and `send` refuse (exit 3, before any write or POST) an id that is not a safe integer
+(`Number.isSafeInteger`, ≤ 2^53 − 1 = 9007199254740991), so the POST body's numeric
+`artifact_id` is always exactly the id that was checked. `effect_send.pages_artifact` records
+`{id, name, archive_digest, content_manifest_digest}`, and the fold requires that
+`content_manifest_digest` to equal the authorized one.
 
 `request_fingerprint` = JCS sha256 of `{artifact_id, pages_build_version}` — the POST body
 **without** `oidc_token`. The token is read from a file and never written to stdout, logs, or the
@@ -144,38 +180,85 @@ ledger. `pages_build_version = <head_sha>:<run_id>:<run_attempt>`.
 `reconcile` needs `--confirmed-full-listing --observed-at --actor-login` (a human attests they
 checked the full listing). A human-entered deployment *state* is never accepted.
 
+Attribution rule (`matchesPromotion`, `src/promotion/provider.ts`): a deployment *carries a marker*
+when a `pages_build_version`-shaped string `<sha>:<run_id>:<run_attempt>` appears in its `ref`,
+`description` or `payload`.
+
+- **marker** — every marker it carries equals this promotion's `pages_build_version`: the
+  deployment is this promotion's. Only this (or the id the promotion's own POST returned in
+  `effect_requested`) can produce a terminal.
+- **mismatch** — it carries a marker of any other promotion (another attempt of the same run
+  included): never this promotion's, and it does **not** fall through to the fallback.
+- **fallback** — no marker at all, but `{environment, sha, created_at ≥ send_at − lookback}` fit.
+  A fallback fit is a *suspicion*, never an attribution: it blocks `abandoned_no_effect` and is
+  detected as a late effect (both only add locks), but never closes a promotion.
+
+A deployment id belongs to at most one promotion in the whole ledger: once `effect_requested`,
+`terminal`, `authorized.external_effect` or a `late_effect_*` records it, an event that would tie
+it to a different promotion is a fold problem (`deployment_attributed_elsewhere`).
+
 1. **candidate terminal** — `--candidate-deployment-id` (or the id from `effect_requested`):
-   `getDeployment` + statuses; it must satisfy `matchesPromotion` and be terminal →
-   `terminal(via=reconcile, operation_completed)` (`reconcile.listing` = null).
+   `getDeployment` + statuses; it must be the `effect_requested` id or a **marker** match, not
+   recorded for anyone else, and terminal → `terminal(via=reconcile, operation_completed)`
+   (`reconcile.listing` = null). A marker of another promotion (`candidate_mismatch`), a
+   marker-less candidate (`candidate_without_marker`), or one already recorded elsewhere
+   (`candidate_attributed_elsewhere`) is exit 6, nothing written, lock kept.
 2. **confirmed absence** — no candidate: list all deployments (every page) since
-   `send_at − reconcile_lookback_s` plus the Pages deployment listing. Zero matches ∧ listing
-   complete (Pages listing `checked` or `unsupported`) ∧ `now − send_at ≥ settle_window_s` →
-   `terminal(abandoned_no_effect)` with the listing summary and criteria.
-3. **ambiguous** — any match without a candidate, more than one, incomplete listing, a non-terminal
-   candidate, or the settle window still open → exit 6, **no event written**. This is decided
-   inside the CAS callback: if a deployment appears between a lost lease and the retry, the
-   retry sees it and exits 6 instead of writing `abandoned_no_effect`.
+   `send_at − reconcile_lookback_s` plus the Pages deployment listing. Zero marker / fallback
+   matches (deployments the ledger records for *another promotion* are explained and skipped) ∧
+   listing complete (Pages listing `checked` or `unsupported`) ∧ `now − send_at ≥ settle_window_s`
+   → `terminal(abandoned_no_effect)` with the listing summary and criteria.
+3. **ambiguous** — any match without a candidate, more than one, incomplete listing (including
+   the late-effect scan's), a non-terminal candidate, or the settle window still open → exit 6,
+   **no event written**. This is decided inside the CAS callback: if a deployment appears between
+   a lost lease and the retry, the retry sees it and exits 6 instead of writing
+   `abandoned_no_effect`.
+
+**If the marker never shows up on real deployments** (integration item below), candidate
+reconcile cannot succeed for an unknown send: a marker-less deployment is exit 6 forever, and so
+is confirmed absence while that deployment is in the window — waiting for the provider to report
+it terminal does not help, because a fallback fit cannot be attributed. The promotion then stays
+open and the target locked until the marker question is settled (or a human repairs the ledger
+outside this CLI). Only sends whose POST returned an id (`effect_requested.deployment_id`) can be
+finalized / reconciled without the marker.
 
 "Latest status" = `created_at` descending, then status `id` descending compared as `BigInt`
 (ids beyond `Number.MAX_SAFE_INTEGER` keep every digit: unsafe integer literals in API responses
 are parsed as strings). A status id that is not `^[0-9]+$` makes the listing unusable — no
 latest, so no terminal can be written from it (exit 6 with `problems`).
 
+The deployments listing (`GET /deployments?environment=github-pages`, `per_page=100`, used by the
+late-effect scan and confirmed-absence reconcile) relies on GitHub returning it newest first. It
+walks pages until one reaches back before `since` (every later page is older: complete), or until
+a page has no `Link: rel="next"` (complete). A page out of `created_at` descending order, an
+unparseable `created_at`, an error, or the 1,000-page safety valve make it incomplete (late-effect
+scan: exit 3 `late_effect_scan_incomplete`; reconcile: exit 6 `listing_incomplete`). A long
+deployment history therefore no longer locks a target whose recent window is small.
+
 ## 9. Late effects (residual risk)
 
-`abandoned_no_effect` can be wrong (the provider showed the deployment late). `authorize`, `send`
-(its `effect_send` step), `finalize` and promotion-mode `reconcile` re-list deployments for each abandoned promotion; a match appends
-`late_effect_detected`, which locks the target. That detection (with the ingest before it) is
-committed **even if the command is then refused** for the lock it causes, so the lock is durable.
-`reconcile --late-effect-event-id` resolves it once the deployment is terminal
-(`attributed_to_promotion` if it matches the abandoned promotion, else `external_unattributed`).
-The abandoned terminal itself is never rewritten. A deployment that appears after the last write
-command is not detected until the next one.
+`abandoned_no_effect` can be wrong (the provider showed the deployment late), and an unknown
+send of one attempt can surface while another promotion has already been closed. `authorize`,
+`send` (its `effect_send` step), `finalize` and promotion-mode `reconcile` list every deployment
+of the environment created since the earliest `send_at − reconcile_lookback_s` of the target's
+sent promotions, and append `late_effect_detected` (which locks the target) for each one **no
+promotion has recorded** — except one whose marker is exactly an *open* promotion's (that
+promotion already locks the target; `finalize` / `reconcile` attribute it). Fallback fits and
+foreign deployments are detected too: detection only adds locks. `matched_promotion_id` is set
+only from an exact marker (of a terminal promotion), else `null`. That detection (with the ingest
+before it) is committed **even if the command is then refused** for the lock it causes, so the
+lock is durable (for `reconcile`, an incomplete scan listing is exit 6). `reconcile
+--late-effect-event-id` resolves it once the deployment is terminal (`attributed_to_promotion`
+only on an exact marker of the matched promotion, else `external_unattributed`). Terminals are
+never rewritten. A deployment that appears after the last write command is not detected until
+the next one.
 
 ## 10. Digests
 
 - `archive_digest`: sha256 of the zip archive bytes (Actions API `artifact.digest`, compared to
   the real bytes when `--archive-path` / `--pages-artifact-archive` is given).
+- `effect_send.pages_artifact.content_manifest_digest`: the content manifest `send` recomputed
+  from the Pages archive's `artifact.tar` (§7); equal to the authorized one.
 - `source_artifact.evidence_artifact = {id, name, archive_digest}`: the evidence artifact the
   receipt and bundle were extracted from. `archive_digest` (required, never `null`) is the
   Actions API `digest` that the `--evidence-archive` bytes matched before extraction, so the
@@ -221,11 +304,15 @@ repository: the repository binding is the authority file the event was read from
 
 ## Integration items (unconfirmed)
 
+- **Highest priority — whether a Pages deployment appears in `/deployments` with
+  `pages_build_version` in `ref`/`payload`/`description`.** Attribution depends on it: without
+  the marker, the `{environment, sha, created_at ≥ send_at − lookback}` fallback only detects and
+  locks, so an unknown send can never be closed by `reconcile` (§8). Confirm on a real
+  repository before relying on reconcile. All matching goes through `matchesPromotion`
+  (`src/promotion/provider.ts`), replaceable via `PromoteDeps.matchesPromotion`.
 - `POST /repos/{o}/{r}/pages/deployments` response fields (`id`, `status_url`) and id type.
-- Whether a Pages deployment appears in `/deployments` with `pages_build_version` in
-  `ref`/`payload`/`description`; if not, matching falls back to `{environment, sha, created_at ≥
-  send_at − lookback}`. All matching goes through `matchesPromotion` (`src/promotion/provider.ts`),
-  replaceable via `PromoteDeps.matchesPromotion`.
+- The Pages artifact archive layout (zip with a top-level uncompressed `artifact.tar`, as
+  `actions/upload-pages-artifact` writes it) and the tar dialect it produces (GNU / ustar).
 - `GET /pages/deployments` listing: not documented; 404 is treated as `unsupported`.
 - Actions artifact `digest` format (`sha256:<hex>` assumed).
 - `promotion-receipt/v0` has no promotion id. During this migration period

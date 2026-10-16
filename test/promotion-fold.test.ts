@@ -111,7 +111,12 @@ function send(pid = PID()): PromotionEvent {
         archive_digest: SHA("9"),
       },
     },
-    pages_artifact: { id: "9001", name: "github-pages-2002-1", archive_digest: SHA("7") },
+    pages_artifact: {
+      id: "9001",
+      name: "github-pages-2002-1",
+      archive_digest: SHA("7"),
+      content_manifest_digest: SHA("6"),
+    },
     request_fingerprint: SHA("8"),
     pages_build_version: `${HEAD_SHA}:${pid.run_id}:${pid.run_attempt}`,
     send_at: AT,

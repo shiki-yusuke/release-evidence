@@ -11,10 +11,11 @@
 import { readFileSync } from "node:fs";
 import { bundleDigest, validateBundle as coreValidateBundle } from "../core/bundle.js";
 import type { Bundle } from "../core/types.js";
+import { buildManifest } from "../manifest/manifest.js";
 import { checkReceiptAgainstVendoredVerifier } from "../shadow-cli/vendor-loader.js";
 import {
   readVerifiedArchive,
-  sha256File,
+  sha256Buffer,
   staticSiteArtifact,
   verifyArchive,
   verifySiteContent,
@@ -52,8 +53,10 @@ import {
   type MatchesPromotion,
   type PromotionMatchInput,
   matchesPromotion as defaultMatches,
+  isSafeArtifactId,
   resolveRunArtifact,
 } from "./provider.js";
+import { TarError, readTar, withExtractedTar } from "./tar.js";
 import {
   type ApprovalEvent,
   type DerivedPromotionId,
@@ -69,6 +72,7 @@ import {
   type ReconcileRecord,
   TERMINAL_OUTCOME,
   type TerminalEvent,
+  canonicalTarget,
   isCalendarTimestamp,
   isTerminalState,
   jcsDigest,
@@ -313,37 +317,53 @@ async function observedState(c: Ctx, deploymentId: string): Promise<string> {
   return latest?.state ?? "no_status";
 }
 
-/** late_effect_detected for any deployment matching a promotion that was closed as
- * abandoned_no_effect (the "nothing happened" conclusion turned out wrong). */
-async function planLateEffects(c: Ctx, state: TargetState): Promise<PromotionEventDraft[]> {
-  const known = new Set([...state.lateEffects.values()].map((le) => le.detected.deployment_id));
-  const drafts: PromotionEventDraft[] = [];
-  for (const p of state.promotions.values()) {
-    if (p.terminal?.resolution !== "abandoned_no_effect" || !p.effectSend) continue;
-    const input = matchInput(p);
-    const since = new Date(Date.parse(input.send_at) - c.config.reconcile_lookback_s * 1000);
-    const listing = await c.provider.listDeployments({
-      environment: PAGES_ENVIRONMENT,
-      since: since.toISOString(),
+const SCAN_INCOMPLETE = "late_effect_scan_incomplete";
+
+/** late_effect_detected for every deployment of the target's environment created since
+ * (earliest send_at - lookback) that no promotion has recorded (deploymentOwners), except one
+ * whose marker is exactly an OPEN promotion's (that promotion already locks the target and
+ * finalize / reconcile attributes it). Detection only ever adds a lock, so a marker-less
+ * deployment that merely fits the fallback criteria is detected too. matched_promotion_id is set
+ * only from an exact marker (of a terminal promotion). */
+async function planLateEffects(
+  c: Ctx,
+  fold: PromotionFoldResult,
+  state: TargetState,
+): Promise<PromotionEventDraft[]> {
+  const sent = [...state.promotions.values()].filter((p) => p.effectSend !== null);
+  if (sent.length === 0) return [];
+  const earliest = Math.min(...sent.map((p) => Date.parse(matchInput(p).send_at)));
+  const since = new Date(earliest - c.config.reconcile_lookback_s * 1000);
+  const listing = await c.provider.listDeployments({
+    environment: PAGES_ENVIRONMENT,
+    since: since.toISOString(),
+  });
+  if (!listing.complete) {
+    throw new PromotionError(EXIT.precondition, `late-effect scan incomplete: ${listing.reason}`, {
+      status: SCAN_INCOMPLETE,
     });
-    if (!listing.complete) {
-      throw new PromotionError(EXIT.precondition, `late-effect scan incomplete: ${listing.reason}`);
-    }
-    for (const d of listing.items) {
-      if (known.has(d.id) || !c.matches(d, input, c.config.reconcile_lookback_s)) continue;
-      known.add(d.id);
-      drafts.push({
-        kind: "late_effect_detected",
-        deployment_id: d.id,
-        matched_promotion_id: p.promotion_id,
-        provider_evidence: {
-          sha: d.sha,
-          environment: d.environment,
-          created_at: d.created_at,
-          observed_state: await observedState(c, d.id),
-        },
-      });
-    }
+  }
+  const drafts: PromotionEventDraft[] = [];
+  const known = new Set(fold.deploymentOwners.keys());
+  for (const d of listing.items) {
+    if (known.has(d.id)) continue;
+    const markerOf = sent.filter(
+      (p) => c.matches(d, matchInput(p), c.config.reconcile_lookback_s) === "marker",
+    );
+    if (markerOf.some((p) => p.phase !== "terminal")) continue;
+    known.add(d.id);
+    drafts.push({
+      kind: "late_effect_detected",
+      deployment_id: d.id,
+      matched_promotion_id:
+        markerOf.length === 1 ? (markerOf[0] as PromotionState).promotion_id : null,
+      provider_evidence: {
+        sha: d.sha,
+        environment: d.environment,
+        created_at: d.created_at,
+        observed_state: await observedState(c, d.id),
+      },
+    });
   }
   return drafts;
 }
@@ -367,7 +387,7 @@ async function prelude(
   const drafts = planIngest(cas.fold, targetStateOf(cas.fold, c.target), authority);
   let fold = foldWith(c, cas, drafts, now);
   if (opts.lateEffects) {
-    drafts.push(...(await planLateEffects(c, targetStateOf(fold, c.target))));
+    drafts.push(...(await planLateEffects(c, fold, targetStateOf(fold, c.target))));
     fold = foldWith(c, cas, drafts, now);
   }
   return { now, drafts, fold, state: targetStateOf(fold, c.target) };
@@ -379,7 +399,7 @@ function foldWith(
   drafts: PromotionEventDraft[],
   now: string,
 ): PromotionFoldResult {
-  const fold = foldPromotionLedger([...cas.events, ...materialize(c, drafts, now)]);
+  const fold = foldPromotionLedger([...cas.events, ...materialize(c, drafts, now, cas.nonce)]);
   if (fold.problems.length > 0) {
     throw new PromotionError(EXIT.precondition, "ingest would make the ledger invalid", {
       problems: fold.problems,
@@ -388,8 +408,17 @@ function foldWith(
   return fold;
 }
 
-function materialize(c: Ctx, drafts: PromotionEventDraft[], now: string): PromotionEvent[] {
-  return drafts.map((d) => buildEvent(d, c.target, now));
+/** effect_send ids carry the CAS call's nonce (see buildEvent): the send right's owner is the
+ * process whose effect_send line is on the ledger, not any process that built the same facts. */
+function materialize(
+  c: Ctx,
+  drafts: PromotionEventDraft[],
+  now: string,
+  nonce?: string,
+): PromotionEvent[] {
+  return drafts.map((d) =>
+    buildEvent(d, c.target, now, d.kind === "effect_send" ? nonce : undefined),
+  );
 }
 
 /** casCommit with the common prelude (ingest + late-effect scan). `specific` returns the
@@ -408,7 +437,7 @@ async function casWithPrelude(
       deferred = undefined;
       const pre = await prelude(c, cas, authority, { lateEffects: true });
       try {
-        return materialize(c, [...pre.drafts, ...(await specific(pre))], pre.now);
+        return materialize(c, [...pre.drafts, ...(await specific(pre))], pre.now, cas.nonce);
       } catch (err) {
         const detected = pre.drafts.some((d) => d.kind === "late_effect_detected");
         if (!(err instanceof PromotionError && err.exitCode === EXIT.precondition && detected)) {
@@ -594,6 +623,7 @@ async function cmdAuthorize(c: Ctx, flags: Flags): Promise<CommandResult> {
   const evidenceArchive = req(flags, "evidence-archive");
   const listing = await c.provider.listRunArtifacts(promotionId.run_id);
   const outArtifact = resolveRunArtifact(listing, evidenceName);
+  requireSafeArtifactIds(outArtifact);
   const evidence = readVerifiedArchive(evidenceArchive, outArtifact.digest as string);
   let files: Map<string, Buffer>;
   try {
@@ -676,6 +706,7 @@ async function cmdAuthorize(c: Ctx, flags: Flags): Promise<CommandResult> {
     );
   }
   const siteArtifact = resolveRunArtifact(listing, `site-dist-${suffix}`);
+  requireSafeArtifactIds(siteArtifact);
   if (archivePath !== undefined) verifyArchive(archivePath, siteArtifact.digest as string);
   const contentDigest = verifySiteContent(siteDir, staticSiteArtifact(bundle));
 
@@ -752,10 +783,28 @@ async function cmdAuthorize(c: Ctx, flags: Flags): Promise<CommandResult> {
 // ---------------------------------------------------------------------------------------------
 // send
 
+/** Artifact ids are kept as decimal strings (compared as strings); one a JS number cannot hold
+ * exactly is refused, so the POST body's numeric artifact_id is never a rounded neighbour. */
+function requireSafeArtifactIds(...artifacts: { id: string; name: string }[]): void {
+  for (const a of artifacts) {
+    if (!isSafeArtifactId(a.id)) unmet(`artifact ${a.name} id ${a.id} is not a safe integer`);
+  }
+}
+
 async function cmdSend(c: Ctx, flags: Flags): Promise<CommandResult> {
   const promotionId = promotionIdFlags(flags);
   const pagesArtifactId = reqPattern(flags, "pages-artifact-id", RUN_ID);
-  const pagesArchiveDigest = sha256File(req(flags, "pages-artifact-archive"));
+  if (!isSafeArtifactId(pagesArtifactId)) {
+    unmet(`--pages-artifact-id ${pagesArtifactId} is beyond Number.MAX_SAFE_INTEGER`);
+  }
+  const pagesArchivePath = req(flags, "pages-artifact-archive");
+  let pagesArchive: Buffer;
+  try {
+    pagesArchive = readFileSync(pagesArchivePath);
+  } catch (err) {
+    usage(`cannot read --pages-artifact-archive: ${(err as Error).message}`);
+  }
+  const pagesArchiveDigest = sha256Buffer(pagesArchive);
   const tokenPath = req(flags, "oidc-token-file");
   let oidcToken: string;
   try {
@@ -777,6 +826,7 @@ async function cmdSend(c: Ctx, flags: Flags): Promise<CommandResult> {
 
   let fingerprint = "";
   let pagesBuildVersion = "";
+  let pagesContent: string | undefined;
   // Provider facts (source run, both artifacts) are re-read inside the callback, i.e. on every
   // CAS attempt: a retry after a lost lease never reuses what an earlier attempt saw.
   const sendResult = await casWithPrelude(c, authority, async (pre) => {
@@ -794,6 +844,7 @@ async function cmdSend(c: Ctx, flags: Flags): Promise<CommandResult> {
     if (run.head_sha !== auth.resolved.source_run.head_sha) unmet("source run head_sha changed");
     const listing = await c.provider.listRunArtifacts(promotionId.run_id);
     const site = resolveRunArtifact(listing, auth.resolved.source_artifact.name);
+    requireSafeArtifactIds(site);
     if (
       site.id !== auth.resolved.source_artifact.id ||
       site.digest !== auth.resolved.source_artifact.archive_digest
@@ -806,6 +857,7 @@ async function cmdSend(c: Ctx, flags: Flags): Promise<CommandResult> {
       await c.provider.listRunArtifacts(auth.executor.run_id),
       pagesName,
     );
+    requireSafeArtifactIds(pages);
     if (pages.workflow_run_id !== auth.executor.run_id) {
       unmet(`pages artifact ${pagesName} was not uploaded by executor run ${auth.executor.run_id}`);
     }
@@ -814,6 +866,14 @@ async function cmdSend(c: Ctx, flags: Flags): Promise<CommandResult> {
     }
     if (pages.digest !== pagesArchiveDigest) {
       unmet(`pages artifact digest ${pages.digest} != archive bytes ${pagesArchiveDigest}`);
+    }
+    // What Pages will serve is artifact.tar inside those bytes: its content manifest must be the
+    // one authorized (a correctly named upload of a different dist is refused here).
+    pagesContent ??= pagesContentDigest(pagesArchive, pagesName);
+    if (pagesContent !== auth.resolved.source_artifact.content_manifest_digest) {
+      unmet(
+        `pages artifact content ${pagesContent} != authorized content_manifest_digest ${auth.resolved.source_artifact.content_manifest_digest}`,
+      );
     }
     pagesBuildVersion = `${auth.resolved.source_run.head_sha}:${promotionId.run_id}:${promotionId.run_attempt}`;
     fingerprint = jcsDigest({
@@ -825,7 +885,12 @@ async function cmdSend(c: Ctx, flags: Flags): Promise<CommandResult> {
       promotion_id: promotionId,
       bundle_digest: auth.resolved.bundle_digest,
       source_artifact: auth.resolved.source_artifact,
-      pages_artifact: { id: pagesArtifactId, name: pagesName, archive_digest: pagesArchiveDigest },
+      pages_artifact: {
+        id: pagesArtifactId,
+        name: pagesName,
+        archive_digest: pagesArchiveDigest,
+        content_manifest_digest: pagesContent,
+      },
       request_fingerprint: fingerprint,
       pages_build_version: pagesBuildVersion,
       send_at: pre.now,
@@ -835,6 +900,19 @@ async function cmdSend(c: Ctx, flags: Flags): Promise<CommandResult> {
 
   // From here on the send right is consumed: whatever fails, there is no second POST.
   await c.deps.hooks?.afterEffectSend?.();
+  // Only the process whose own effect_send line (nonce-bearing event_id) is on the remote
+  // ledger may POST; anything else here means the CAS result cannot be trusted.
+  const ownSend = sendResult.events.find((e) => e.kind === "effect_send");
+  {
+    const { fold } = await loadLedger(c.repo);
+    const p = requirePromotion(targetStateOf(fold, c.target), promotionId);
+    if (!ownSend || p.effectSend?.event_id !== ownSend.event_id) {
+      unmet(`effect_send on the ledger for ${key} is not this process's; no POST`, {
+        effect_send: summarize(sendResult),
+        ledger_effect_send: p.effectSend?.event_id ?? null,
+      });
+    }
+  }
   const post = await c.provider.createPagesDeployment({
     artifact_id: pagesArtifactId,
     oidc_token: oidcToken,
@@ -891,6 +969,23 @@ async function cmdSend(c: Ctx, flags: Flags): Promise<CommandResult> {
     );
   }
 }
+
+/** Content manifest digest of the Pages artifact zip: its top-level artifact.tar, extracted to a
+ * temporary directory and hashed with the same manifest rules as authorize's --site-dir. */
+function pagesContentDigest(archive: Buffer, name: string): string {
+  try {
+    const tar = extractZipEntries(archive, ["artifact.tar"], MAX_PAGES_TAR_BYTES).get(
+      "artifact.tar",
+    ) as Buffer;
+    const entries = readTar(tar, MAX_PAGES_TAR_BYTES);
+    return withExtractedTar(entries, (dir) => buildManifest(dir).digest);
+  } catch (err) {
+    if (err instanceof ZipError || err instanceof TarError) unmet(`${name}: ${err.message}`);
+    unmet(`${name}: cannot extract artifact.tar (${(err as Error).message})`);
+  }
+}
+
+const MAX_PAGES_TAR_BYTES = 256 * 1024 * 1024;
 
 // ---------------------------------------------------------------------------------------------
 // finalize
@@ -1059,8 +1154,10 @@ async function cmdReconcileLateEffect(c: Ctx, flags: Flags, human: HumanConfirma
       }
       const matchedId = current.detected.matched_promotion_id;
       const matched = matchedId ? pre.state.promotions.get(promotionKey(matchedId)) : undefined;
+      // Attribution needs the exact marker; a fallback fit is never enough.
       const attributed =
-        matched !== undefined && c.matches(d, matchInput(matched), c.config.reconcile_lookback_s);
+        matched !== undefined &&
+        c.matches(d, matchInput(matched), c.config.reconcile_lookback_s) === "marker";
       const draft: PromotionEventDraft = {
         kind: "late_effect_resolved",
         late_effect_event_id: lateId,
@@ -1119,14 +1216,32 @@ async function cmdReconcile(c: Ctx, flags: Flags): Promise<CommandResult> {
   // Every provider fact the event depends on (candidate + statuses, the full deployment listing,
   // the Pages listing, provider time) is fetched inside the CAS callback, so a retry after a lost
   // lease re-observes: a deployment that appeared meanwhile turns "absence" into exit 6.
+  // An incomplete deployment listing is "ambiguous" for reconcile (exit 6, lock stays), whether
+  // the late-effect scan or the absence check hit it.
   const result = await casWithPrelude(c, authority, async (pre) => {
     const p = requirePromotion(pre.state, promotionId);
     if (p.phase !== p0.phase) unmet(`promotion ${key} changed to ${p.phase} while reconciling`);
+    const requestedId = knownDeploymentId(p);
     const draft =
       candidate !== undefined
-        ? await candidateTerminal(c, candidate, input, promotionId, key, human, criteria, pre.now)
-        : await confirmedAbsence(c, input, promotionId, human, criteria, pre.now);
+        ? await candidateTerminal(
+            c,
+            pre,
+            candidate,
+            requestedId,
+            input,
+            promotionId,
+            key,
+            human,
+            criteria,
+          )
+        : await confirmedAbsence(c, pre, input, promotionId, human, criteria);
     return [draft];
+  }).catch((err: unknown) => {
+    if (err instanceof PromotionError && err.details.status === SCAN_INCOMPLETE) {
+      nonTerminal("listing_incomplete", { reason: err.message });
+    }
+    throw err;
   });
   return { exitCode: EXIT.ok, output: summarize(result) };
 }
@@ -1138,20 +1253,44 @@ function nonTerminal(status: string, details: Record<string, unknown>): never {
 
 type Criteria = ReconcileRecord["criteria"];
 
+/** A candidate closes the promotion only when it is attributed to it: either it is the id this
+ * promotion's own POST returned (effect_requested), or it carries exactly this promotion's
+ * pages_build_version marker. A marker of another promotion, a marker-less deployment (even if
+ * env / sha / time fit), or a deployment the ledger already records for anyone else is exit 6:
+ * nothing is written and the lock stays. */
 async function candidateTerminal(
   c: Ctx,
+  pre: Prelude,
   candidate: string,
+  requestedId: string | null,
   input: PromotionMatchInput,
   promotionId: PromotionId,
   key: string,
   human: HumanConfirmation,
   criteria: Criteria,
-  now: string,
 ): Promise<PromotionEventDraft> {
+  const now = pre.now;
   const d = await c.provider.getDeployment(candidate);
   if (!d) nonTerminal("candidate_not_found", { candidate });
-  if (!c.matches(d, input, c.config.reconcile_lookback_s)) {
-    unmet(`deployment ${candidate} does not match promotion ${key}`);
+  if (d.id !== requestedId) {
+    const match = c.matches(d, input, c.config.reconcile_lookback_s);
+    if (match === "fallback") {
+      nonTerminal("candidate_without_marker", {
+        candidate,
+        reason: `deployment ${candidate} carries no pages_build_version marker; env/sha/time alone cannot attribute it to ${key}`,
+      });
+    }
+    if (match !== "marker") {
+      nonTerminal("candidate_mismatch", {
+        candidate,
+        reason: `deployment ${candidate} does not carry promotion ${key}'s marker ${input.pages_build_version}`,
+      });
+    }
+  }
+  const owner = pre.fold.deploymentOwners.get(d.id);
+  const self = `${canonicalTarget(c.target)} ${key}`;
+  if (owner !== undefined && owner !== self) {
+    nonTerminal("candidate_attributed_elsewhere", { candidate, recorded_for: owner });
   }
   const { latest, problems } = await c.provider.listDeploymentStatuses(d.id);
   if (!latest || !isTerminalState(latest.state)) {
@@ -1177,20 +1316,27 @@ async function candidateTerminal(
 
 async function confirmedAbsence(
   c: Ctx,
+  pre: Prelude,
   input: PromotionMatchInput,
   promotionId: PromotionId,
   human: HumanConfirmation,
   criteria: Criteria,
-  now: string,
 ): Promise<PromotionEventDraft> {
+  const now = pre.now;
   const listing = await c.provider.listDeployments({
     environment: PAGES_ENVIRONMENT,
     since: criteria.created_at_not_before,
   });
   const pages = await c.provider.listPagesDeployments();
   const seen = new Map<string, Deployment>();
+  // A marker or fallback fit blocks abandonment (suspected effect), unless the ledger already
+  // records that deployment for ANOTHER promotion (it is explained there). An unattributed late
+  // effect explains nothing and still blocks.
+  const self = `${canonicalTarget(c.target)} ${promotionKey(promotionId)}`;
   for (const d of [...listing.items, ...pages.items]) {
-    if (c.matches(d, input, c.config.reconcile_lookback_s)) seen.set(d.id, d);
+    const owner = pre.fold.deploymentOwners.get(d.id);
+    if (owner !== undefined && owner !== self && !owner.includes(" late:")) continue;
+    if (c.matches(d, input, c.config.reconcile_lookback_s) !== "mismatch") seen.set(d.id, d);
   }
   const candidates = [...seen.keys()];
   if (!listing.complete || pages.status === "incomplete") {

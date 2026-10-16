@@ -131,7 +131,14 @@ export interface EffectSendEvent extends Base {
   source_artifact: SourceArtifact;
   /** name = `github-pages-<executor.run_id>-<executor.run_attempt>` (exact, unique in the
    * executor run's artifacts, not expired, workflow_run.id = executor.run_id). */
-  pages_artifact: { id: string; name: string; archive_digest: string };
+  /** content_manifest_digest = the content manifest recomputed from the archive's artifact.tar,
+   * equal to authorized.resolved.source_artifact.content_manifest_digest. */
+  pages_artifact: {
+    id: string;
+    name: string;
+    archive_digest: string;
+    content_manifest_digest: string;
+  };
   request_fingerprint: string;
   pages_build_version: string;
   send_at: string;

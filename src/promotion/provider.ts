@@ -9,6 +9,8 @@
 // Actions artifact `digest` format, and the (undocumented) Pages deployment listing endpoint.
 // `matchesPromotion` is the single predicate all of reconcile / late-effect / unknown-response
 // matching uses, so a field correction is a one-place change (commands accept a replacement).
+// Only an exact pages_build_version marker attributes a deployment; the marker-less fallback
+// can only add locks (late-effect detection, blocking abandonment), never close a promotion.
 
 import { PAGES_ENVIRONMENT, PromotionError } from "./types.js";
 
@@ -64,31 +66,71 @@ export interface PromotionMatchInput {
   send_at: string;
 }
 
+/** How a deployment relates to one promotion:
+ *   "marker"   -- carries a pages_build_version marker and it is exactly this promotion's;
+ *   "fallback" -- carries no marker at all, but {environment, sha, created_at window} fit;
+ *   "mismatch" -- anything else, including a marker of ANY other promotion (never a fallback).
+ * Only "marker" attributes a deployment to a promotion (a terminal may be derived from it);
+ * "fallback" is only ever used to detect / suspect an effect (lock, block abandonment). */
+export type PromotionMatch = "marker" | "fallback" | "mismatch";
+
 export type MatchesPromotion = (
   deployment: Deployment,
   promotion: PromotionMatchInput,
   lookbackS: number,
-) => boolean;
+) => PromotionMatch;
 
-/** THE deployment <-> promotion predicate (one place only). The pages_build_version
- * fingerprint wins when present anywhere in ref/payload/description; otherwise fall back to
- * {environment, sha, created_at >= send_at - lookback}. */
-export const matchesPromotion: MatchesPromotion = (deployment, promotion, lookbackS) => {
+/** pages_build_version = `<head_sha>:<run_id>:<run_attempt>` (same shape as the schema). */
+const MARKER = /(?<![0-9a-f])[0-9a-f]{40}:[1-9][0-9]{0,19}:[1-9][0-9]{0,9}(?![0-9])/g;
+
+/** Every pages_build_version marker found in the deployment's ref / description / payload. */
+export function deploymentMarkers(deployment: Deployment): string[] {
   const haystack = [
     deployment.ref,
     deployment.description ?? "",
     JSON.stringify(deployment.payload ?? null),
-  ];
-  if (haystack.some((s) => s.includes(promotion.pages_build_version))) return true;
-  return (
-    deployment.environment === PAGES_ENVIRONMENT &&
+  ].join("\n");
+  return [...new Set(haystack.match(MARKER) ?? [])];
+}
+
+/** THE deployment <-> promotion predicate (one place only). A deployment with any marker
+ * matches only when every marker it carries is exactly this promotion's pages_build_version;
+ * a marker-less one falls back to {environment, sha, created_at >= send_at - lookback}. */
+export const matchesPromotion: MatchesPromotion = (deployment, promotion, lookbackS) => {
+  const markers = deploymentMarkers(deployment);
+  if (markers.length > 0) {
+    return promotion.pages_build_version.length > 0 &&
+      markers.every((m) => m === promotion.pages_build_version)
+      ? "marker"
+      : "mismatch";
+  }
+  return deployment.environment === PAGES_ENVIRONMENT &&
     deployment.sha === promotion.head_sha &&
     Date.parse(deployment.created_at) >= Date.parse(promotion.send_at) - lookbackS * 1000
-  );
+    ? "fallback"
+    : "mismatch";
 };
 
 const PAGE_SIZE = 100;
 const MAX_PAGES = 50;
+/** Safety valve only: the deployments listing normally ends at `since` or the last page. */
+const MAX_DEPLOYMENT_PAGES = 1000;
+
+/** An artifact id the POST body can carry as an exact JSON number: decimal, 1..2^53-1. */
+export function isSafeArtifactId(id: string): boolean {
+  return /^[1-9][0-9]*$/.test(id) && Number.isSafeInteger(Number(id));
+}
+
+/** True when an RFC 8288 `Link` header has a `rel="next"` link. */
+function hasNextLink(headers: Headers): boolean {
+  const link = headers.get("link");
+  if (!link) return false;
+  for (const m of link.matchAll(/<[^>]*>((?:\s*;\s*[^;,]+)*)/g)) {
+    const rel = /;\s*rel\s*=\s*"?([^";,]*)"?/i.exec(m[1] ?? "");
+    if (rel && (rel[1] ?? "").toLowerCase().split(/\s+/).includes("next")) return true;
+  }
+  return false;
+}
 
 type Json = Record<string, unknown>;
 
@@ -226,6 +268,10 @@ export class GitHubProvider {
     oidc_token: string;
     pages_build_version: string;
   }): Promise<PagesCreateResult> {
+    // send refuses such ids before effect_send; this only guards against a rounded POST body.
+    if (!isSafeArtifactId(input.artifact_id)) {
+      throw new PromotionError(3, `artifact id ${input.artifact_id} is not a safe integer`);
+    }
     try {
       const r = await this.request("POST", "/pages/deployments", {
         artifact_id: Number(input.artifact_id),
@@ -285,17 +331,51 @@ export class GitHubProvider {
     return { latest: sorted[0] ?? null, problems };
   }
 
-  /** All deployments for the environment with created_at >= since (every page). */
+  /** All deployments for the environment with created_at >= since. GitHub lists them newest
+   * first, so the walk stops (complete) at the first page reaching back before `since`, or at a
+   * page without a `rel="next"` Link. A page out of created_at descending order, an unparseable
+   * created_at, an error, or MAX_DEPLOYMENT_PAGES pages = incomplete. */
   async listDeployments(opts: { environment: string; since: string }): Promise<
     Listing<Deployment>
   > {
-    const listing = await this.paginate(
-      `/deployments?environment=${encodeURIComponent(opts.environment)}`,
-      "",
-      toDeployment,
-    );
     const since = Date.parse(opts.since);
-    return { ...listing, items: listing.items.filter((d) => Date.parse(d.created_at) >= since) };
+    const items: Deployment[] = [];
+    const incomplete = (pages: number, reason: string): Listing<Deployment> => ({
+      complete: false,
+      items,
+      pages_fetched: pages,
+      reason,
+    });
+    if (Number.isNaN(since)) return incomplete(0, `unparseable since ${opts.since}`);
+    const env = encodeURIComponent(opts.environment);
+    let previous = Number.POSITIVE_INFINITY;
+    for (let page = 1; page <= MAX_DEPLOYMENT_PAGES; page++) {
+      let r: Awaited<ReturnType<GitHubProvider["request"]>>;
+      try {
+        r = await this.request(
+          "GET",
+          `/deployments?environment=${env}&per_page=${PAGE_SIZE}&page=${page}`,
+        );
+      } catch (err) {
+        return incomplete(page - 1, (err as Error).message);
+      }
+      if (r.status !== 200 || !Array.isArray(r.json)) {
+        return incomplete(page - 1, `page ${page}: ${r.status}`);
+      }
+      for (const raw of r.json as Json[]) {
+        const d = toDeployment(raw);
+        const t = Date.parse(d.created_at);
+        if (Number.isNaN(t)) return incomplete(page, `page ${page}: unparseable created_at`);
+        if (t > previous)
+          return incomplete(page, `page ${page}: not in created_at descending order`);
+        previous = t;
+        if (t >= since) items.push(d);
+      }
+      if (previous < since || !hasNextLink(r.headers)) {
+        return { complete: true, items, pages_fetched: page };
+      }
+    }
+    return incomplete(MAX_DEPLOYMENT_PAGES, "page limit reached");
   }
 
   /** Pages deployment listing: 404 = endpoint unsupported; 403 / timeout / partial = incomplete. */

@@ -87,12 +87,14 @@ function findEocd(buf: Buffer): number {
 function checkName(raw: Buffer, utf8: boolean): string {
   let name: string;
   try {
-    name = new TextDecoder(utf8 ? "utf-8" : "latin1", { fatal: true }).decode(raw);
+    // ignoreBOM: a leading EF BB BF stays in the name (and is refused) instead of being dropped.
+    name = new TextDecoder(utf8 ? "utf-8" : "latin1", { fatal: true, ignoreBOM: true }).decode(raw);
   } catch {
     fail("entry name is not valid UTF-8");
   }
   if (name.length === 0) fail("empty entry name");
   if (name.includes("\0")) fail(`entry name contains NUL: ${JSON.stringify(name)}`);
+  if (name.includes("\uFEFF")) fail(`entry name contains U+FEFF (BOM): ${JSON.stringify(name)}`);
   if (name.includes("\\")) fail(`entry name contains a backslash: ${JSON.stringify(name)}`);
   if (name.startsWith("/") || /^[A-Za-z]:/.test(name)) {
     fail(`entry name is absolute: ${JSON.stringify(name)}`);

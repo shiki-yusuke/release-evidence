@@ -88,11 +88,14 @@ export function validatePromotionEvent(event: unknown): string[] {
 }
 
 /** Completes a draft into a ledger line. event_id is derived from the content (so a retried
- * build of the same facts is the same id) and fits the schema's `^[a-z0-9-]{8,64}$`. */
+ * build of the same facts is the same id) and fits the schema's `^[a-z0-9-]{8,64}$`. With a
+ * `nonce` (the CAS call's, used for effect_send) the id also covers it, so two processes that
+ * build the same facts get different ids and each can tell whether the line is its own. */
 export function buildEvent(
   draft: PromotionEventDraft,
   target: PromotionTarget,
   occurredAt: string,
+  nonce?: string,
 ): PromotionEvent {
   const body = {
     schema_version: PROMOTION_SCHEMA_VERSION,
@@ -103,7 +106,7 @@ export function buildEvent(
   };
   return {
     ...body,
-    event_id: `pe-${sha256hex(canonicalize(body)).slice(0, 40)}`,
+    event_id: `pe-${sha256hex(nonce ? `${canonicalize(body)}\n${nonce}` : canonicalize(body)).slice(0, 40)}`,
   } as PromotionEvent;
 }
 
@@ -152,6 +155,10 @@ export interface PromotionFoldResult {
   problems: string[];
   /** approval event_id -> "<canonical target> <promotion key>" across the WHOLE ledger. */
   approvalConsumers: Map<string, string>;
+  /** deployment id -> its single owner across the WHOLE ledger: "<canonical target> <promotion
+   * key>" (effect_requested / terminal / external_effect / attributed late effect) or
+   * "<canonical target> late:<event id>" (a late effect matched to no promotion). */
+  deploymentOwners: Map<string, string>;
 }
 
 function emptyTarget(target: PromotionTarget): TargetState {
@@ -297,6 +304,7 @@ export function foldPromotionLedger(events: unknown[]): PromotionFoldResult {
   const problems: string[] = [];
   const targets = new Map<string, TargetState>();
   const approvalConsumers = new Map<string, string>();
+  const deploymentOwners = new Map<string, string>();
   const ingestedAnywhere = new Set<string>();
   const seenIds = new Set<string>();
 
@@ -324,6 +332,16 @@ export function foldPromotionLedger(events: unknown[]): PromotionFoldResult {
       "promotion_id" in ev && ev.kind !== "revoked_after_consume"
         ? state.promotions.get(promotionKey(ev.promotion_id))
         : undefined;
+    // A deployment belongs to at most one promotion ledger-wide: any event that would tie a
+    // deployment already recorded for another owner to this promotion is refused.
+    const ownerOf = (id: PromotionId) => `${tkey} ${promotionKey(id)}`;
+    const claimedElsewhere = (deploymentId: string | null, owner: string): string | null => {
+      if (deploymentId === null) return null;
+      const current = deploymentOwners.get(deploymentId);
+      return current !== undefined && current !== owner
+        ? `deployment_attributed_elsewhere: ${deploymentId} is recorded for ${current}`
+        : null;
+    };
 
     switch (ev.kind) {
       case "authority_ingested": {
@@ -343,7 +361,15 @@ export function foldPromotionLedger(events: unknown[]): PromotionFoldResult {
       }
       case "authorized": {
         const p = checkAuthorized(ev, state, approvalConsumers);
+        const claim = claimedElsewhere(
+          ev.external_effect?.deployment_id ?? null,
+          ownerOf(ev.promotion_id),
+        );
+        if (claim) p.push(claim);
         if (p.length > 0) return bad(p.join("; "));
+        if (ev.external_effect) {
+          deploymentOwners.set(ev.external_effect.deployment_id, ownerOf(ev.promotion_id));
+        }
         const key = promotionKey(ev.promotion_id);
         state.promotions.set(key, {
           promotion_id: ev.promotion_id,
@@ -370,6 +396,12 @@ export function foldPromotionLedger(events: unknown[]): PromotionFoldResult {
         }
         const pbv = `${auth.resolved.source_run.head_sha}:${ev.promotion_id.run_id}:${ev.promotion_id.run_attempt}`;
         if (ev.pages_build_version !== pbv) p.push(`pages_build_version_mismatch: expected ${pbv}`);
+        if (
+          ev.pages_artifact.content_manifest_digest !==
+          auth.resolved.source_artifact.content_manifest_digest
+        ) {
+          p.push("pages_artifact_content_mismatch: != authorized content_manifest_digest");
+        }
         const pagesName = `github-pages-${auth.executor.run_id}-${auth.executor.run_attempt}`;
         if (ev.pages_artifact.name !== pagesName) {
           p.push(`pages_artifact_name_mismatch: expected ${pagesName}`);
@@ -388,6 +420,11 @@ export function foldPromotionLedger(events: unknown[]): PromotionFoldResult {
         if (ev.request_fingerprint !== promotion.effectSend?.request_fingerprint) {
           return bad("request_fingerprint_mismatch");
         }
+        const claim = claimedElsewhere(ev.deployment_id, ownerOf(ev.promotion_id));
+        if (claim) return bad(claim);
+        if (ev.deployment_id !== null) {
+          deploymentOwners.set(ev.deployment_id, ownerOf(ev.promotion_id));
+        }
         promotion.effectRequested = ev;
         promotion.phase = "requested";
         return;
@@ -395,7 +432,12 @@ export function foldPromotionLedger(events: unknown[]): PromotionFoldResult {
       case "terminal": {
         if (!promotion) return bad("terminal_without_authorized");
         const p = checkTerminal(ev, promotion);
+        const claim = claimedElsewhere(ev.deployment_id, ownerOf(ev.promotion_id));
+        if (claim) p.push(claim);
         if (p.length > 0) return bad(p.join("; "));
+        if (ev.deployment_id !== null) {
+          deploymentOwners.set(ev.deployment_id, ownerOf(ev.promotion_id));
+        }
         promotion.terminal = ev;
         promotion.phase = "terminal";
         return;
@@ -415,17 +457,28 @@ export function foldPromotionLedger(events: unknown[]): PromotionFoldResult {
         return;
       }
       case "late_effect_detected": {
+        // A late effect is a deployment no promotion has recorded. matched_promotion_id (set
+        // only from an exact pages_build_version marker) must name a promotion that is already
+        // terminal -- an open promotion's own deployment is attributed by finalize / reconcile.
         if (ev.matched_promotion_id) {
           const pr = state.promotions.get(promotionKey(ev.matched_promotion_id));
-          if (pr?.terminal?.resolution !== "abandoned_no_effect") {
-            return bad("late_effect_matched_promotion_not_abandoned");
-          }
+          if (pr?.phase !== "terminal") return bad("late_effect_matched_promotion_not_terminal");
+        }
+        const current = deploymentOwners.get(ev.deployment_id);
+        if (current !== undefined) {
+          return bad(`late_effect_deployment_already_recorded: ${ev.deployment_id} for ${current}`);
         }
         for (const le of state.lateEffects.values()) {
           if (!le.resolved && le.detected.deployment_id === ev.deployment_id) {
             return bad(`late_effect_already_pending: ${ev.deployment_id}`);
           }
         }
+        deploymentOwners.set(
+          ev.deployment_id,
+          ev.matched_promotion_id
+            ? ownerOf(ev.matched_promotion_id)
+            : `${tkey} late:${ev.event_id}`,
+        );
         state.lateEffects.set(ev.event_id, { detected: ev, resolved: null });
         return;
       }
@@ -458,7 +511,7 @@ export function foldPromotionLedger(events: unknown[]): PromotionFoldResult {
         matched_promotion_id: le.detected.matched_promotion_id,
       }));
   }
-  return { targets, problems, approvalConsumers };
+  return { targets, problems, approvalConsumers, deploymentOwners };
 }
 
 export function targetStateOf(fold: PromotionFoldResult, target: PromotionTarget): TargetState {

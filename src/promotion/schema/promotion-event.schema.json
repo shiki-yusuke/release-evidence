@@ -514,7 +514,8 @@
             "required": [
               "id",
               "name",
-              "archive_digest"
+              "archive_digest",
+              "content_manifest_digest"
             ],
             "properties": {
               "id": {
@@ -527,6 +528,10 @@
               },
               "archive_digest": {
                 "$ref": "#/$defs/digest"
+              },
+              "content_manifest_digest": {
+                "$ref": "#/$defs/digest",
+                "description": "Content manifest recomputed by send from artifact.tar inside the archive bytes; must equal authorized.resolved.source_artifact.content_manifest_digest."
               }
             }
           },

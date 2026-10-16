@@ -592,7 +592,12 @@ describe("fix 5: the Pages artifact belongs to the executor attempt", () => {
     expect(send?.pages_artifact).toEqual({
       id: "9001",
       name: `github-pages-${EXECUTOR_RUN_ID}-1`,
-      archive_digest: sha256Bytes("zip-bytes-of-pages-artifact"),
+      archive_digest: sha256Bytes(readFileSync(sb.pagesArchivePath)),
+      content_manifest_digest: (
+        remoteLedger(sb).find((e) => e.kind === "authorized") as {
+          resolved: { source_artifact: { content_manifest_digest: string } };
+        }
+      ).resolved.source_artifact.content_manifest_digest,
     });
   });
 

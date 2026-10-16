@@ -17,8 +17,15 @@
 // `non-fast-forward`, or the remote's ref-transaction compare failing: `cannot lock ref`) -> retry; (c) anything else (network, auth, ruleset, or the re-fetch
 // itself failing) -> exit 5 "outcome uncertain", no retry. Exit 4 therefore means: every attempt
 // was a lease rejection, and a final fetch confirmed none of our commits is on the remote.
+//
+// "Our commit" is identified by OID only, and every casCommit call puts a fresh random nonce in
+// the commit message (`Promotion-Cas-Nonce: <hex>` trailer, also handed to buildEvents so event
+// ids can carry it). Without it two processes that fold the same head with the same provider
+// time and git dates build the byte-identical commit, and the loser of the lease would find "its"
+// OID on the remote and believe its own push landed.
 
 import { spawn } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import type { PromotionConfig } from "./config.js";
 import { type PromotionFoldResult, foldPromotionLedger } from "./fold.js";
 import { EXIT, PromotionError, type PromotionEvent } from "./types.js";
@@ -67,6 +74,7 @@ const COMMIT_IDENTITY = {
   GIT_COMMITTER_EMAIL: "promotion-ledger@invalid",
 };
 const FETCHED_REF = "refs/promotion-cas/head";
+export const NONCE_TRAILER = "Promotion-Cas-Nonce";
 
 export interface LedgerRepo {
   git: GitRunner;
@@ -183,6 +191,8 @@ export async function loadLedger(
 export interface CasContext {
   head: string | null;
   attempt: number;
+  /** This casCommit call's random nonce (32 hex chars), also in the commit message trailer. */
+  nonce: string;
   fold: PromotionFoldResult;
   events: unknown[];
 }
@@ -210,11 +220,13 @@ export async function casCommit(
   const { git, repoDir, config } = repo;
   const pushFailures: string[] = [];
   const ourCommits: string[] = [];
+  const nonce = randomBytes(16).toString("hex");
   for (let attempt = 1; attempt <= config.max_cas_retries; attempt++) {
     const { snapshot, fold } = await loadLedger(repo);
     const events = await buildEvents({
       head: snapshot.head,
       attempt,
+      nonce,
       fold,
       events: snapshot.events,
     });
@@ -234,7 +246,7 @@ export async function casCommit(
     const tree = (
       await git(["mktree"], { cwd: repoDir, input: `100644 blob ${blob}\t${config.ledger_path}\n` })
     ).trim();
-    const message = `promotion-ledger: ${events.map((e) => e.kind).join(", ")}`;
+    const message = `promotion-ledger: ${events.map((e) => e.kind).join(", ")}\n\n${NONCE_TRAILER}: ${nonce}`;
     const parentArgs = snapshot.head ? ["-p", snapshot.head] : [];
     const commit = (
       await git(["commit-tree", tree, ...parentArgs, "-m", message], {
@@ -299,8 +311,10 @@ function uncertain(msg: string, commit: string, pushError: string): PromotionErr
   });
 }
 
-/** Re-fetches the ledger ref and returns the first of `commits` that is the remote head or on
- * its first-parent chain (null = none landed). A failing fetch is "uncertain" (exit 5). */
+/** Re-fetches the ledger ref and returns the first of `commits` (our own OIDs, each unique by
+ * its nonce) that is the remote head or on its first-parent chain (null = none landed). Same
+ * tree or same events under a different OID is someone else's commit. A failing fetch is
+ * "uncertain" (exit 5). */
 async function landedOnRemote(
   repo: LedgerRepo,
   commits: string[],

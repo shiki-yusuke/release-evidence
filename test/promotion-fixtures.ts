@@ -5,7 +5,7 @@
 
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { canonicalize, sha256hex } from "#vendor/jcs.mjs";
@@ -15,6 +15,7 @@ import { computeApprovalEventId } from "../src/promotion/authority.js";
 import type { Flags, PromoteDeps } from "../src/promotion/commands.js";
 import type { FetchFn } from "../src/promotion/provider.js";
 import type { ApprovalEvent } from "../src/promotion/types.js";
+import { tarOfDir } from "./tar-writer.js";
 import { buildZip } from "./zip-writer.js";
 
 export const REPO = "acme/site";
@@ -196,7 +197,11 @@ export function makeFetch(st: FakeState): FetchFn {
     if (p === "/deployments") {
       if (st.deploymentsListFails) return reply(500, { message: "boom" });
       const env = u.searchParams.get("environment");
-      return reply(200, paged(st.deployments.filter((d) => d.environment === env)));
+      // GitHub lists deployments newest first (created_at, then id, descending).
+      const list = st.deployments
+        .filter((d) => d.environment === env)
+        .sort((a, b) => b.created_at.localeCompare(a.created_at) || b.id - a.id);
+      return reply(200, paged(list));
     }
     return reply(404, { message: `unrouted ${method} ${p}` });
   };
@@ -241,7 +246,20 @@ export function writeAuthority(sb: Sandbox, events: ApprovalEvent[]): void {
   git(sb.authority, ["commit", "-q", "--allow-empty", "-m", "authority"]);
 }
 
-export function sha256Bytes(text: string): string {
+/** The Pages artifact zip as upload-pages-artifact makes it: one top-level artifact.tar of dir. */
+export function pagesZipOf(dir: string): Buffer {
+  return buildZip([{ name: "artifact.tar", data: tarOfDir(dir), method: 8 }]);
+}
+
+/** Replaces the executor's Pages artifact archive (file + the digest the fake API reports). */
+export function writePagesArchive(sb: Sandbox, zip: Buffer): string {
+  writeFileSync(sb.pagesArchivePath, zip);
+  const digest = sha256Bytes(zip);
+  for (const a of sb.state.artifacts[EXECUTOR_RUN_ID] ?? []) a.digest = digest;
+  return digest;
+}
+
+export function sha256Bytes(text: string | Buffer): string {
   return `sha256:${createHash("sha256").update(text).digest("hex")}`;
 }
 
@@ -280,7 +298,7 @@ export function makeSandbox(
   const archivePath = path.join(root, "site-dist.zip");
   writeFileSync(archivePath, "zip-bytes-of-site-dist");
   const pagesArchivePath = path.join(root, "github-pages.zip");
-  writeFileSync(pagesArchivePath, "zip-bytes-of-pages-artifact");
+  writeFileSync(pagesArchivePath, pagesZipOf(siteDir));
   const tokenPath = path.join(root, "oidc-token");
   writeFileSync(tokenPath, "SECRET-OIDC-TOKEN\n");
 
@@ -450,7 +468,7 @@ export function addSourceRun(sb: Sandbox, runId: string, attempt: number): void 
         id: 9001,
         name: `github-pages-${EXECUTOR_RUN_ID}-1`,
         expired: false,
-        digest: sha256Bytes("zip-bytes-of-pages-artifact"),
+        digest: sha256Bytes(readFileSync(sb.pagesArchivePath)),
         workflow_run: { id: Number(EXECUTOR_RUN_ID) },
       },
     ];

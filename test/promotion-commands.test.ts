@@ -557,11 +557,12 @@ describe("promote reconcile: classification", () => {
     });
     expect((await runPromote("lock-status", sb.common, deps(sb))).output.locked).toBe(false);
 
-    // the provider later shows a matching deployment: next write detects it and locks
+    // the provider later shows a deployment carrying this promotion's marker: the next write
+    // detects it and locks, and it can then be attributed to the abandoned promotion
     sb.state.deployments.push({
       id: 900,
       sha: HEAD_SHA,
-      ref: "main",
+      ref: `${HEAD_SHA}:${RUN_ID}:1`,
       environment: "github-pages",
       created_at: addSeconds(T0, 10),
       payload: {},
@@ -614,7 +615,8 @@ describe("promote reconcile: classification", () => {
     const head = remoteHead(sb);
     const multi = await runPromote("reconcile", flags, deps(sb));
     expect(multi.exitCode).toBe(EXIT.nonTerminal);
-    expect(multi.output.candidates).toEqual(["801", "802"]);
+    // provider order (newest first); the set is what matters.
+    expect([...(multi.output.candidates as string[])].sort()).toEqual(["801", "802"]);
 
     sb.state.deployments = [];
     sb.state.deploymentsListFails = true;
