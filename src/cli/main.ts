@@ -31,6 +31,12 @@ import type {
   ReleaseEvent,
 } from "../core/types.js";
 import { buildManifest, readBackVerify, writeReleaseManifest } from "../manifest/manifest.js";
+import {
+  PROMOTE_ALLOWED_FLAGS,
+  PROMOTE_USAGE,
+  type Flags as PromoteFlags,
+  runPromote,
+} from "../promotion/commands.js";
 
 type Flags = Record<string, string | boolean>;
 
@@ -111,6 +117,7 @@ const USAGE: Record<string, string> = {
   status: "release-evidence status --ledger <file> [--release-id <id>]",
   audit: "release-evidence audit --ledger <file> --bundles <dir>",
   manifest: "release-evidence manifest <dir> [--write]",
+  promote: Object.values(PROMOTE_USAGE).join("\n  "),
 };
 
 /** Per-command allowlists -- an unrecognized flag or an extra positional argument is a usage
@@ -469,6 +476,47 @@ function cmdManifest(dir: string, write: boolean): void {
   console.log(JSON.stringify({ digest, manifest }, null, 2));
 }
 
+/** `promote <sub>`: per-subcommand allowlist like every other command, then the async runner
+ * (src/promotion/commands.ts). Its result is always one JSON object on stdout; the exit code is
+ * the promotion contract's (0 ok / 1 ledger invalid / 2 usage / 3 precondition / 4 CAS
+ * exhausted / 5 read-back mismatch / 6 non-terminal). */
+function runPromoteCli(positional: string[], flags: Flags): void {
+  const sub = positional[0];
+  if (sub === undefined || !(sub in PROMOTE_USAGE)) {
+    if (sub === undefined && (flags.help || flags.h)) {
+      printHelp("promote");
+      process.exit(0);
+    }
+    fail(
+      `${sub === undefined ? "missing" : "unknown"} promote subcommand\n\nusage:\n  ${USAGE.promote}`,
+    );
+  }
+  const usage = PROMOTE_USAGE[sub];
+  if (flags.help || flags.h) {
+    console.log(usage);
+    process.exit(0);
+  }
+  if (positional.length > 1)
+    fail(`too many positional arguments for "promote ${sub}"\n\nusage: ${usage}`);
+  const allowed = new Set(PROMOTE_ALLOWED_FLAGS[sub] ?? []);
+  for (const key of Object.keys(flags)) {
+    if (!allowed.has(key)) fail(`unknown flag --${key} for "promote ${sub}"\n\nusage: ${usage}`);
+  }
+  runPromote(sub, flags as PromoteFlags, {
+    fetch: globalThis.fetch,
+    token: process.env.GITHUB_TOKEN,
+  })
+    .then(({ exitCode, output }) => {
+      console.log(JSON.stringify(output, null, 2));
+      if (exitCode !== 0 && typeof output.error === "string") console.error(output.error);
+      process.exit(exitCode);
+    })
+    .catch((err: unknown) => {
+      console.error(err instanceof Error ? err.message : String(err));
+      process.exit(2);
+    });
+}
+
 function main(): void {
   const [, , cmd, ...rest] = process.argv;
   const { positional, flags, repeated } = parseArgs(rest);
@@ -484,6 +532,10 @@ function main(): void {
   }
   if (repeated.length > 0) {
     fail(`flag --${repeated[0]} was given more than once`);
+  }
+  if (cmd === "promote") {
+    runPromoteCli(positional, flags);
+    return;
   }
   if (flags.help || flags.h) {
     printHelp(cmd);

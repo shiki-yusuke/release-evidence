@@ -1,0 +1,1513 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "release-evidence-promotion/0 event",
+  "description": "One line of the promotion ledger (non-authority). Closed per kind via allOf/if-then. Normative description: docs/promotion-protocol.md. GENERATED SHAPE -- keep in sync with src/promotion/types.ts.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "event_id",
+    "kind",
+    "target",
+    "occurred_at",
+    "actor"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "release-evidence-promotion/0"
+    },
+    "event_id": {
+      "$ref": "#/$defs/eventId"
+    },
+    "kind": {
+      "enum": [
+        "authority_ingested",
+        "authorized",
+        "effect_send",
+        "effect_requested",
+        "terminal",
+        "revoked_after_consume",
+        "late_effect_detected",
+        "late_effect_resolved"
+      ]
+    },
+    "target": {
+      "$ref": "#/$defs/target"
+    },
+    "occurred_at": {
+      "$ref": "#/$defs/timestamp"
+    },
+    "actor": {
+      "const": "ci"
+    },
+    "authority_event": {},
+    "source": {},
+    "promotion_id": {},
+    "approval_event_id": {},
+    "approval_kind": {},
+    "recorded_after_side_effect": {},
+    "subject_digest": {},
+    "subject": {},
+    "site_url": {},
+    "evaluated_at": {},
+    "time_source": {},
+    "expiry_safety_window_s": {},
+    "expires_at": {},
+    "executor": {},
+    "resolved": {},
+    "external_effect": {},
+    "bundle_digest": {},
+    "source_artifact": {},
+    "pages_artifact": {},
+    "request_fingerprint": {},
+    "pages_build_version": {},
+    "send_at": {},
+    "deployment_id": {},
+    "status_url": {},
+    "response_observed": {},
+    "requested_at": {},
+    "via": {},
+    "resolution": {},
+    "operation_completed": {},
+    "desired_state_observed": {},
+    "outcome": {},
+    "reconcile": {},
+    "revoke_event_id": {},
+    "matched_promotion_id": {},
+    "provider_evidence": {},
+    "late_effect_event_id": {},
+    "attributed_promotion_id": {},
+    "human_confirmation": {}
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": [
+          "kind"
+        ],
+        "properties": {
+          "kind": {
+            "const": "authority_ingested"
+          }
+        }
+      },
+      "then": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "schema_version",
+          "event_id",
+          "kind",
+          "target",
+          "occurred_at",
+          "actor",
+          "authority_event",
+          "source"
+        ],
+        "properties": {
+          "schema_version": {
+            "const": "release-evidence-promotion/0"
+          },
+          "event_id": {
+            "$ref": "#/$defs/eventId"
+          },
+          "kind": {
+            "enum": [
+              "authority_ingested",
+              "authorized",
+              "effect_send",
+              "effect_requested",
+              "terminal",
+              "revoked_after_consume",
+              "late_effect_detected",
+              "late_effect_resolved"
+            ]
+          },
+          "target": {
+            "$ref": "#/$defs/target"
+          },
+          "occurred_at": {
+            "$ref": "#/$defs/timestamp"
+          },
+          "actor": {
+            "const": "ci"
+          },
+          "authority_event": {
+            "type": "object",
+            "description": "release-approval/v0 event, verbatim. Validated in code against the vendored release-approval/v0 schema + local rules (src/promotion/authority.ts)."
+          },
+          "source": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "ref",
+              "commit_oid",
+              "path",
+              "line"
+            ],
+            "properties": {
+              "ref": {
+                "const": "main"
+              },
+              "commit_oid": {
+                "$ref": "#/$defs/oid"
+              },
+              "path": {
+                "type": "string",
+                "minLength": 1
+              },
+              "line": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "kind"
+        ],
+        "properties": {
+          "kind": {
+            "const": "authorized"
+          }
+        }
+      },
+      "then": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "schema_version",
+          "event_id",
+          "kind",
+          "target",
+          "occurred_at",
+          "actor",
+          "promotion_id",
+          "approval_event_id",
+          "approval_kind",
+          "recorded_after_side_effect",
+          "subject_digest",
+          "subject",
+          "site_url",
+          "evaluated_at",
+          "time_source",
+          "expiry_safety_window_s",
+          "expires_at",
+          "executor",
+          "resolved",
+          "external_effect"
+        ],
+        "properties": {
+          "schema_version": {
+            "const": "release-evidence-promotion/0"
+          },
+          "event_id": {
+            "$ref": "#/$defs/eventId"
+          },
+          "kind": {
+            "enum": [
+              "authority_ingested",
+              "authorized",
+              "effect_send",
+              "effect_requested",
+              "terminal",
+              "revoked_after_consume",
+              "late_effect_detected",
+              "late_effect_resolved"
+            ]
+          },
+          "target": {
+            "$ref": "#/$defs/target"
+          },
+          "occurred_at": {
+            "$ref": "#/$defs/timestamp"
+          },
+          "actor": {
+            "const": "ci"
+          },
+          "promotion_id": {
+            "$ref": "#/$defs/promotionId"
+          },
+          "approval_event_id": {
+            "$ref": "#/$defs/approvalEventId"
+          },
+          "approval_kind": {
+            "enum": [
+              "approval_granted",
+              "break_glass_approve"
+            ]
+          },
+          "recorded_after_side_effect": {
+            "type": "boolean"
+          },
+          "subject_digest": {
+            "$ref": "#/$defs/digest"
+          },
+          "subject": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "receipt_digest",
+              "receipt_semantic_digest",
+              "bundle_digest",
+              "selection_manifest_digest",
+              "target"
+            ],
+            "properties": {
+              "receipt_digest": {
+                "$ref": "#/$defs/digest"
+              },
+              "receipt_semantic_digest": {
+                "$ref": "#/$defs/digest"
+              },
+              "bundle_digest": {
+                "$ref": "#/$defs/digest"
+              },
+              "selection_manifest_digest": {
+                "$ref": "#/$defs/digest"
+              },
+              "target": {
+                "enum": [
+                  "preview",
+                  "staging",
+                  "production"
+                ]
+              }
+            }
+          },
+          "site_url": {
+            "type": "string",
+            "pattern": "^https://"
+          },
+          "evaluated_at": {
+            "$ref": "#/$defs/timestamp"
+          },
+          "time_source": {
+            "const": "github_api_date"
+          },
+          "expiry_safety_window_s": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "expires_at": {
+            "$ref": "#/$defs/timestamp"
+          },
+          "executor": {
+            "$ref": "#/$defs/promotionId"
+          },
+          "resolved": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "source_run",
+              "source_artifact",
+              "bundle_digest",
+              "receipt_digest",
+              "receipt_promotion_id",
+              "derived_promotion_id",
+              "resolver_source"
+            ],
+            "properties": {
+              "source_run": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "run_id",
+                  "run_attempt",
+                  "head_sha",
+                  "conclusion"
+                ],
+                "properties": {
+                  "run_id": {
+                    "$ref": "#/$defs/runId"
+                  },
+                  "run_attempt": {
+                    "$ref": "#/$defs/runAttempt"
+                  },
+                  "head_sha": {
+                    "$ref": "#/$defs/oid"
+                  },
+                  "conclusion": {
+                    "const": "success"
+                  }
+                }
+              },
+              "source_artifact": {
+                "$ref": "#/$defs/sourceArtifact"
+              },
+              "bundle_digest": {
+                "$ref": "#/$defs/digest"
+              },
+              "receipt_digest": {
+                "$ref": "#/$defs/digest"
+              },
+              "receipt_promotion_id": {
+                "oneOf": [
+                  {
+                    "$ref": "#/$defs/promotionId"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The receipt's own promotion_id field, which authorize requires to equal promotion_id exactly. null while promotion-receipt/v0 carries no promotion_id (migration period); derived_promotion_id is then set instead. Exactly one of receipt_promotion_id / derived_promotion_id is non-null (enforced by the fold)."
+              },
+              "derived_promotion_id": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "run_id",
+                      "run_attempt",
+                      "derived_from"
+                    ],
+                    "properties": {
+                      "run_id": {
+                        "$ref": "#/$defs/runId"
+                      },
+                      "run_attempt": {
+                        "$ref": "#/$defs/runAttempt"
+                      },
+                      "derived_from": {
+                        "const": "artifact_name"
+                      }
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Set only when the receipt carries no promotion_id: the id synthesized from the name of the evidence artifact (release-evidence-out-<run_id>-<run_attempt>, unique in the source run's artifacts, expired=false) whose API digest matched the zip that receipt.json / bundle.json were extracted from. Must equal promotion_id. null when receipt_promotion_id is set."
+              },
+              "resolver_source": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "store",
+                  "namespace"
+                ],
+                "properties": {
+                  "store": {
+                    "const": "github_actions_artifacts"
+                  },
+                  "namespace": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              }
+            }
+          },
+          "external_effect": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "deployment_id",
+                  "sha",
+                  "environment",
+                  "created_at",
+                  "observed_state"
+                ],
+                "properties": {
+                  "deployment_id": {
+                    "$ref": "#/$defs/deploymentId"
+                  },
+                  "sha": {
+                    "$ref": "#/$defs/oid"
+                  },
+                  "environment": {
+                    "const": "github-pages"
+                  },
+                  "created_at": {
+                    "$ref": "#/$defs/timestamp"
+                  },
+                  "observed_state": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "kind"
+        ],
+        "properties": {
+          "kind": {
+            "const": "effect_send"
+          }
+        }
+      },
+      "then": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "schema_version",
+          "event_id",
+          "kind",
+          "target",
+          "occurred_at",
+          "actor",
+          "promotion_id",
+          "bundle_digest",
+          "source_artifact",
+          "pages_artifact",
+          "request_fingerprint",
+          "pages_build_version",
+          "send_at"
+        ],
+        "properties": {
+          "schema_version": {
+            "const": "release-evidence-promotion/0"
+          },
+          "event_id": {
+            "$ref": "#/$defs/eventId"
+          },
+          "kind": {
+            "enum": [
+              "authority_ingested",
+              "authorized",
+              "effect_send",
+              "effect_requested",
+              "terminal",
+              "revoked_after_consume",
+              "late_effect_detected",
+              "late_effect_resolved"
+            ]
+          },
+          "target": {
+            "$ref": "#/$defs/target"
+          },
+          "occurred_at": {
+            "$ref": "#/$defs/timestamp"
+          },
+          "actor": {
+            "const": "ci"
+          },
+          "promotion_id": {
+            "$ref": "#/$defs/promotionId"
+          },
+          "bundle_digest": {
+            "$ref": "#/$defs/digest"
+          },
+          "source_artifact": {
+            "$ref": "#/$defs/sourceArtifact"
+          },
+          "pages_artifact": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "name",
+              "archive_digest"
+            ],
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/artifactId"
+              },
+              "name": {
+                "type": "string",
+                "pattern": "^github-pages-[1-9][0-9]{0,19}-[1-9][0-9]{0,9}$",
+                "description": "github-pages-<executor.run_id>-<executor.run_attempt>; exact, unique in the executor run's artifacts, not expired, workflow_run.id = executor.run_id."
+              },
+              "archive_digest": {
+                "$ref": "#/$defs/digest"
+              }
+            }
+          },
+          "request_fingerprint": {
+            "$ref": "#/$defs/digest"
+          },
+          "pages_build_version": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{40}:[1-9][0-9]{0,19}:[1-9][0-9]{0,9}$"
+          },
+          "send_at": {
+            "$ref": "#/$defs/timestamp"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "kind"
+        ],
+        "properties": {
+          "kind": {
+            "const": "effect_requested"
+          }
+        }
+      },
+      "then": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "schema_version",
+          "event_id",
+          "kind",
+          "target",
+          "occurred_at",
+          "actor",
+          "promotion_id",
+          "deployment_id",
+          "status_url",
+          "response_observed",
+          "request_fingerprint",
+          "requested_at"
+        ],
+        "properties": {
+          "schema_version": {
+            "const": "release-evidence-promotion/0"
+          },
+          "event_id": {
+            "$ref": "#/$defs/eventId"
+          },
+          "kind": {
+            "enum": [
+              "authority_ingested",
+              "authorized",
+              "effect_send",
+              "effect_requested",
+              "terminal",
+              "revoked_after_consume",
+              "late_effect_detected",
+              "late_effect_resolved"
+            ]
+          },
+          "target": {
+            "$ref": "#/$defs/target"
+          },
+          "occurred_at": {
+            "$ref": "#/$defs/timestamp"
+          },
+          "actor": {
+            "const": "ci"
+          },
+          "promotion_id": {
+            "$ref": "#/$defs/promotionId"
+          },
+          "deployment_id": {
+            "oneOf": [
+              {
+                "$ref": "#/$defs/deploymentId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "response_observed": {
+            "type": "boolean"
+          },
+          "request_fingerprint": {
+            "$ref": "#/$defs/digest"
+          },
+          "requested_at": {
+            "$ref": "#/$defs/timestamp"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "kind"
+        ],
+        "properties": {
+          "kind": {
+            "const": "terminal"
+          }
+        }
+      },
+      "then": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "schema_version",
+          "event_id",
+          "kind",
+          "target",
+          "occurred_at",
+          "actor",
+          "promotion_id",
+          "deployment_id",
+          "via",
+          "resolution",
+          "operation_completed",
+          "desired_state_observed",
+          "outcome",
+          "reconcile"
+        ],
+        "properties": {
+          "schema_version": {
+            "const": "release-evidence-promotion/0"
+          },
+          "event_id": {
+            "$ref": "#/$defs/eventId"
+          },
+          "kind": {
+            "enum": [
+              "authority_ingested",
+              "authorized",
+              "effect_send",
+              "effect_requested",
+              "terminal",
+              "revoked_after_consume",
+              "late_effect_detected",
+              "late_effect_resolved"
+            ]
+          },
+          "target": {
+            "$ref": "#/$defs/target"
+          },
+          "occurred_at": {
+            "$ref": "#/$defs/timestamp"
+          },
+          "actor": {
+            "const": "ci"
+          },
+          "promotion_id": {
+            "$ref": "#/$defs/promotionId"
+          },
+          "deployment_id": {
+            "oneOf": [
+              {
+                "$ref": "#/$defs/deploymentId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "via": {
+            "enum": [
+              "provider_poll",
+              "reconcile"
+            ]
+          },
+          "resolution": {
+            "enum": [
+              "operation_completed",
+              "abandoned_no_effect"
+            ]
+          },
+          "operation_completed": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "state",
+                  "status_id",
+                  "observed_at"
+                ],
+                "properties": {
+                  "state": {
+                    "enum": [
+                      "success",
+                      "failure",
+                      "error",
+                      "inactive"
+                    ]
+                  },
+                  "status_id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "observed_at": {
+                    "$ref": "#/$defs/timestamp"
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "desired_state_observed": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "live_digest",
+                  "expected_digest",
+                  "matches",
+                  "observed_at"
+                ],
+                "properties": {
+                  "live_digest": {
+                    "$ref": "#/$defs/digest"
+                  },
+                  "expected_digest": {
+                    "$ref": "#/$defs/digest"
+                  },
+                  "matches": {
+                    "type": "boolean"
+                  },
+                  "observed_at": {
+                    "$ref": "#/$defs/timestamp"
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "outcome": {
+            "enum": [
+              "completed",
+              "failed",
+              "abandoned_no_effect"
+            ]
+          },
+          "reconcile": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "human_confirmation",
+                  "listing",
+                  "criteria"
+                ],
+                "properties": {
+                  "human_confirmation": {
+                    "$ref": "#/$defs/humanConfirmation"
+                  },
+                  "listing": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "pages_fetched",
+                          "total",
+                          "newest_created_at",
+                          "oldest_created_at",
+                          "pages_listing"
+                        ],
+                        "properties": {
+                          "pages_fetched": {
+                            "type": "integer",
+                            "minimum": 0
+                          },
+                          "total": {
+                            "type": "integer",
+                            "minimum": 0
+                          },
+                          "newest_created_at": {
+                            "oneOf": [
+                              {
+                                "$ref": "#/$defs/timestamp"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "oldest_created_at": {
+                            "oneOf": [
+                              {
+                                "$ref": "#/$defs/timestamp"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "pages_listing": {
+                            "enum": [
+                              "checked",
+                              "unsupported"
+                            ]
+                          }
+                        }
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "criteria": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "environment",
+                      "sha",
+                      "created_at_not_before"
+                    ],
+                    "properties": {
+                      "environment": {
+                        "const": "github-pages"
+                      },
+                      "sha": {
+                        "$ref": "#/$defs/oid"
+                      },
+                      "created_at_not_before": {
+                        "$ref": "#/$defs/timestamp"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "kind"
+        ],
+        "properties": {
+          "kind": {
+            "const": "revoked_after_consume"
+          }
+        }
+      },
+      "then": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "schema_version",
+          "event_id",
+          "kind",
+          "target",
+          "occurred_at",
+          "actor",
+          "promotion_id",
+          "approval_event_id",
+          "revoke_event_id"
+        ],
+        "properties": {
+          "schema_version": {
+            "const": "release-evidence-promotion/0"
+          },
+          "event_id": {
+            "$ref": "#/$defs/eventId"
+          },
+          "kind": {
+            "enum": [
+              "authority_ingested",
+              "authorized",
+              "effect_send",
+              "effect_requested",
+              "terminal",
+              "revoked_after_consume",
+              "late_effect_detected",
+              "late_effect_resolved"
+            ]
+          },
+          "target": {
+            "$ref": "#/$defs/target"
+          },
+          "occurred_at": {
+            "$ref": "#/$defs/timestamp"
+          },
+          "actor": {
+            "const": "ci"
+          },
+          "promotion_id": {
+            "$ref": "#/$defs/promotionId"
+          },
+          "approval_event_id": {
+            "$ref": "#/$defs/approvalEventId"
+          },
+          "revoke_event_id": {
+            "$ref": "#/$defs/approvalEventId"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "kind"
+        ],
+        "properties": {
+          "kind": {
+            "const": "late_effect_detected"
+          }
+        }
+      },
+      "then": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "schema_version",
+          "event_id",
+          "kind",
+          "target",
+          "occurred_at",
+          "actor",
+          "deployment_id",
+          "matched_promotion_id",
+          "provider_evidence"
+        ],
+        "properties": {
+          "schema_version": {
+            "const": "release-evidence-promotion/0"
+          },
+          "event_id": {
+            "$ref": "#/$defs/eventId"
+          },
+          "kind": {
+            "enum": [
+              "authority_ingested",
+              "authorized",
+              "effect_send",
+              "effect_requested",
+              "terminal",
+              "revoked_after_consume",
+              "late_effect_detected",
+              "late_effect_resolved"
+            ]
+          },
+          "target": {
+            "$ref": "#/$defs/target"
+          },
+          "occurred_at": {
+            "$ref": "#/$defs/timestamp"
+          },
+          "actor": {
+            "const": "ci"
+          },
+          "deployment_id": {
+            "$ref": "#/$defs/deploymentId"
+          },
+          "matched_promotion_id": {
+            "oneOf": [
+              {
+                "$ref": "#/$defs/promotionId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provider_evidence": {
+            "$ref": "#/$defs/providerEvidence"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "kind"
+        ],
+        "properties": {
+          "kind": {
+            "const": "late_effect_resolved"
+          }
+        }
+      },
+      "then": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "schema_version",
+          "event_id",
+          "kind",
+          "target",
+          "occurred_at",
+          "actor",
+          "late_effect_event_id",
+          "deployment_id",
+          "resolution",
+          "attributed_promotion_id",
+          "human_confirmation",
+          "provider_evidence"
+        ],
+        "properties": {
+          "schema_version": {
+            "const": "release-evidence-promotion/0"
+          },
+          "event_id": {
+            "$ref": "#/$defs/eventId"
+          },
+          "kind": {
+            "enum": [
+              "authority_ingested",
+              "authorized",
+              "effect_send",
+              "effect_requested",
+              "terminal",
+              "revoked_after_consume",
+              "late_effect_detected",
+              "late_effect_resolved"
+            ]
+          },
+          "target": {
+            "$ref": "#/$defs/target"
+          },
+          "occurred_at": {
+            "$ref": "#/$defs/timestamp"
+          },
+          "actor": {
+            "const": "ci"
+          },
+          "late_effect_event_id": {
+            "$ref": "#/$defs/eventId"
+          },
+          "deployment_id": {
+            "$ref": "#/$defs/deploymentId"
+          },
+          "resolution": {
+            "enum": [
+              "attributed_to_promotion",
+              "external_unattributed"
+            ]
+          },
+          "attributed_promotion_id": {
+            "oneOf": [
+              {
+                "$ref": "#/$defs/promotionId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "human_confirmation": {
+            "$ref": "#/$defs/humanConfirmation"
+          },
+          "provider_evidence": {
+            "$ref": "#/$defs/providerEvidence"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "kind"
+        ],
+        "properties": {
+          "kind": {
+            "const": "authorized"
+          }
+        }
+      },
+      "then": {
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "approval_kind": {
+                  "const": "approval_granted"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "recorded_after_side_effect": {
+                  "const": false
+                },
+                "external_effect": {
+                  "type": "null"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "recorded_after_side_effect": {
+                  "const": true
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "approval_kind": {
+                  "const": "break_glass_approve"
+                },
+                "external_effect": {
+                  "type": "object"
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "external_effect": {
+                  "type": "null"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "kind"
+        ],
+        "properties": {
+          "kind": {
+            "const": "terminal"
+          }
+        }
+      },
+      "then": {
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "resolution": {
+                  "const": "operation_completed"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "deployment_id": {
+                  "type": "string"
+                },
+                "operation_completed": {
+                  "type": "object"
+                },
+                "outcome": {
+                  "enum": [
+                    "completed",
+                    "failed"
+                  ]
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "via": {
+                  "const": "reconcile"
+                },
+                "deployment_id": {
+                  "type": "null"
+                },
+                "operation_completed": {
+                  "type": "null"
+                },
+                "desired_state_observed": {
+                  "type": "null"
+                },
+                "outcome": {
+                  "const": "abandoned_no_effect"
+                },
+                "reconcile": {
+                  "type": "object",
+                  "properties": {
+                    "listing": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "via": {
+                  "const": "provider_poll"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "reconcile": {
+                  "type": "null"
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "reconcile": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "operation_completed": {
+                  "type": "object",
+                  "properties": {
+                    "state": {
+                      "const": "success"
+                    }
+                  }
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "outcome": {
+                  "const": "completed"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "operation_completed": {
+                  "type": "object",
+                  "properties": {
+                    "state": {
+                      "enum": [
+                        "failure",
+                        "error",
+                        "inactive"
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "outcome": {
+                  "const": "failed"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "kind"
+        ],
+        "properties": {
+          "kind": {
+            "const": "late_effect_resolved"
+          }
+        }
+      },
+      "then": {
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "resolution": {
+                  "const": "attributed_to_promotion"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "attributed_promotion_id": {
+                  "type": "object"
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "attributed_promotion_id": {
+                  "type": "null"
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "approvalEventId": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "eventId": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]{8,64}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,9})?Z$"
+    },
+    "oid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "runId": {
+      "type": "string",
+      "pattern": "^[1-9][0-9]{0,19}$"
+    },
+    "runAttempt": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "artifactId": {
+      "type": "string",
+      "pattern": "^[1-9][0-9]{0,19}$"
+    },
+    "deploymentId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]{1,128}$"
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "environment"
+      ],
+      "properties": {
+        "repository": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]*/[a-z0-9][a-z0-9._-]*$"
+        },
+        "environment": {
+          "const": "github-pages"
+        }
+      }
+    },
+    "promotionId": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "run_id",
+        "run_attempt"
+      ],
+      "properties": {
+        "run_id": {
+          "$ref": "#/$defs/runId"
+        },
+        "run_attempt": {
+          "$ref": "#/$defs/runAttempt"
+        }
+      }
+    },
+    "sourceArtifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "archive_digest",
+        "content_manifest_digest",
+        "evidence_artifact"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/artifactId"
+        },
+        "name": {
+          "type": "string",
+          "pattern": "^site-dist-[1-9][0-9]{0,19}-[1-9][0-9]{0,9}$"
+        },
+        "archive_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "content_manifest_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "evidence_artifact": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "name",
+            "archive_digest"
+          ],
+          "description": "The source run's release-evidence-out-<run_id>-<run_attempt> artifact (exact name, unique in the run's artifacts, expired=false) whose zip receipt.json / bundle.json were extracted from. archive_digest is the Actions API artifact.digest, which the supplied zip bytes matched before extraction (required).",
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/artifactId"
+            },
+            "name": {
+              "type": "string",
+              "pattern": "^release-evidence-out-[1-9][0-9]{0,19}-[1-9][0-9]{0,9}$"
+            },
+            "archive_digest": {
+              "$ref": "#/$defs/digest"
+            }
+          }
+        }
+      }
+    },
+    "providerEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sha",
+        "environment",
+        "created_at",
+        "observed_state"
+      ],
+      "properties": {
+        "sha": {
+          "$ref": "#/$defs/oid"
+        },
+        "environment": {
+          "type": "string",
+          "minLength": 1
+        },
+        "created_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "observed_state": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "humanConfirmation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "confirmed_full_listing",
+        "observed_at",
+        "actor_login"
+      ],
+      "properties": {
+        "confirmed_full_listing": {
+          "const": true
+        },
+        "observed_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "actor_login": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$"
+        }
+      }
+    }
+  }
+}
