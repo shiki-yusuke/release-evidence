@@ -47,6 +47,20 @@ source-distributed reference implementation (`private: true`), not a published n
 The v0 ledger assumes a single writer: concurrent `record` processes are not serialized, so
 route writes through one process rather than treating the file as a multi-writer database.
 
+## Promotion ledger (single-consumption)
+
+`release-evidence promote <lock-status|ingest|authorize|send|finalize|reconcile>` binds each
+GitHub Pages production send to exactly one `release-approval/v0` approval. Approvals placed on
+`main` are candidates; they take effect in the order they are ingested into an append-only
+promotion ledger on `refs/heads/promotion-ledger`, written only through a
+`git push --force-with-lease` compare-and-swap. An approval is consumed once (`authorized`), the
+send right is used once (`effect_send`), and the outcome is closed only by what the GitHub
+Deployments API reports (or by a human-confirmed reconcile). A target stays locked while any
+promotion is open or a late effect is unresolved.
+
+The normative protocol, exit codes, operating conditions, and the integration items not yet
+confirmed against the real API are in [docs/promotion-protocol.md](docs/promotion-protocol.md).
+
 ## Deployment evidence already exercised
 
 > **Status: exercised against a real deployment.** The contract this repo implements
