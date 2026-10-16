@@ -44,12 +44,15 @@ export const execGit: GitRunner = (args, opts) =>
     const child = spawn("git", args, {
       cwd: opts.cwd,
       env: { ...process.env, GIT_TERMINAL_PROMPT: "0", ...opts.env },
-      stdio: ["pipe", "pipe", "pipe"],
+      // stdin is only opened when there is input to write: git exits without reading stdin for
+      // most commands, and ending a pipe the child already closed raises EPIPE on Linux (an
+      // unhandled 'error' event on child.stdin, which took the whole CLI down with exit 1).
+      stdio: [opts.input === undefined ? "ignore" : "pipe", "pipe", "pipe"],
     });
     const out: Buffer[] = [];
     const err: Buffer[] = [];
-    child.stdout.on("data", (d: Buffer) => out.push(d));
-    child.stderr.on("data", (d: Buffer) => err.push(d));
+    child.stdout?.on("data", (d: Buffer) => out.push(d));
+    child.stderr?.on("data", (d: Buffer) => err.push(d));
     child.on("error", reject);
     child.on("close", (code) => {
       if (code === 0) resolve(Buffer.concat(out).toString("utf-8"));
@@ -64,7 +67,12 @@ export const execGit: GitRunner = (args, opts) =>
         );
       }
     });
-    child.stdin.end(opts.input ?? "");
+    if (opts.input !== undefined && child.stdin) {
+      child.stdin.on("error", (e: NodeJS.ErrnoException) => {
+        if (e.code !== "EPIPE") reject(e); // EPIPE: git exited first; its exit code decides
+      });
+      child.stdin.end(opts.input);
+    }
   });
 
 const COMMIT_IDENTITY = {
