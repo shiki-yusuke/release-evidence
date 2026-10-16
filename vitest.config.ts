@@ -7,5 +7,9 @@ export default defineConfig({
   test: {
     include: ["test/**/*.test.ts"],
     exclude: ["dist/**", "node_modules/**"],
+    // Several files run `pnpm run build` (tsc -b) in beforeAll, concurrently on a cold CI
+    // runner; the 10 s default hook timeout fails them by chance (playbook conformance
+    // 2026-10-16, three files). The build itself is not the thing under test.
+    hookTimeout: 60_000,
   },
 });
