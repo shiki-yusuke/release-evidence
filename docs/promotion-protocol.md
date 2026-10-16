@@ -171,8 +171,9 @@ Artifact ids (source / evidence / Pages) are kept as decimal strings and compare
 `{id, name, archive_digest, content_manifest_digest}`, and the fold requires that
 `content_manifest_digest` to equal the authorized one.
 
-`request_fingerprint` = JCS sha256 of `{artifact_id, pages_build_version}` — the POST body
-**without** `oidc_token`. The token is read from a file and never written to stdout, logs, or the
+`request_fingerprint` = JCS sha256 of `{artifact_id, pages_build_version}` — the POST body as
+sent (`artifact_id` as the JSON number, built by the same function as the POST) **without**
+`oidc_token`. The token is read from a file and never written to stdout, logs, or the
 ledger. `pages_build_version = <head_sha>:<run_id>:<run_attempt>`.
 
 ## 8. Reconcile
@@ -234,6 +235,11 @@ a page has no `Link: rel="next"` (complete). A page out of `created_at` descendi
 unparseable `created_at`, an error, or the 1,000-page safety valve make it incomplete (late-effect
 scan: exit 3 `late_effect_scan_incomplete`; reconcile: exit 6 `listing_incomplete`). A long
 deployment history therefore no longer locks a target whose recent window is small.
+`Link` is parsed per RFC 8288 (quoted-string parameter values, commas inside them, token or quoted
+`rel`, several relation types); a header that cannot be parsed makes the listing incomplete.
+`created_at` / `updated_at` (and `since`) must be strict RFC 3339 instants (`T`, seconds, `Z` or
+`±hh:mm`) whose calendar date and time exist as written; any other value makes the listing
+incomplete (an invalid `since` is a caller error, exit 3).
 
 ## 9. Late effects (residual risk)
 

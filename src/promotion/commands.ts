@@ -54,6 +54,7 @@ import {
   type PromotionMatchInput,
   matchesPromotion as defaultMatches,
   isSafeArtifactId,
+  pagesDeploymentRequest,
   resolveRunArtifact,
 } from "./provider.js";
 import { TarError, readTar, withExtractedTar } from "./tar.js";
@@ -876,10 +877,14 @@ async function cmdSend(c: Ctx, flags: Flags): Promise<CommandResult> {
       );
     }
     pagesBuildVersion = `${auth.resolved.source_run.head_sha}:${promotionId.run_id}:${promotionId.run_attempt}`;
-    fingerprint = jcsDigest({
-      artifact_id: pagesArtifactId,
-      pages_build_version: pagesBuildVersion,
-    });
+    // The POST body without oidc_token, built by the same function the POST uses (artifact_id
+    // as the JSON number sent).
+    fingerprint = jcsDigest(
+      pagesDeploymentRequest({
+        artifact_id: pagesArtifactId,
+        pages_build_version: pagesBuildVersion,
+      }),
+    );
     const draft: PromotionEventDraft = {
       kind: "effect_send",
       promotion_id: promotionId,

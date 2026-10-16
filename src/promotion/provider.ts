@@ -121,15 +121,156 @@ export function isSafeArtifactId(id: string): boolean {
   return /^[1-9][0-9]*$/.test(id) && Number.isSafeInteger(Number(id));
 }
 
-/** True when an RFC 8288 `Link` header has a `rel="next"` link. */
-function hasNextLink(headers: Headers): boolean {
-  const link = headers.get("link");
-  if (!link) return false;
-  for (const m of link.matchAll(/<[^>]*>((?:\s*;\s*[^;,]+)*)/g)) {
-    const rel = /;\s*rel\s*=\s*"?([^";,]*)"?/i.exec(m[1] ?? "");
-    if (rel && (rel[1] ?? "").toLowerCase().split(/\s+/).includes("next")) return true;
+/** The POST /pages/deployments body without `oidc_token`: what is sent and what
+ * request_fingerprint hashes (one source, so the two cannot drift). artifact_id is the JSON
+ * number actually sent; ids that are not exact safe integers are refused. */
+export function pagesDeploymentRequest(input: {
+  artifact_id: string;
+  pages_build_version: string;
+}): {
+  artifact_id: number;
+  pages_build_version: string;
+} {
+  if (!isSafeArtifactId(input.artifact_id)) {
+    throw new PromotionError(3, `artifact id ${input.artifact_id} is not a safe integer`);
   }
-  return false;
+  return { artifact_id: Number(input.artifact_id), pages_build_version: input.pages_build_version };
+}
+
+const STRICT_INSTANT =
+  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,9}))?(Z|([+-])(\d{2}):(\d{2}))$/;
+
+/** Epoch ms of a strict RFC 3339 instant (`T`, seconds, an explicit `Z` / `+hh:mm` offset), or
+ * null. The calendar date and time must exist as written (2026-02-30, 24:00, :60 are refused,
+ * where Date.parse would roll them over); fractions beyond milliseconds are truncated. */
+export function parseStrictInstant(s: string): number | null {
+  const m = STRICT_INSTANT.exec(s);
+  if (!m) return null;
+  const [y, mo, d, h, mi, sec] = m.slice(1, 7).map(Number) as [
+    number,
+    number,
+    number,
+    number,
+    number,
+    number,
+  ];
+  const t = new Date(0);
+  t.setUTCFullYear(y, mo - 1, d);
+  t.setUTCHours(h, mi, sec, 0);
+  if (
+    t.getUTCFullYear() !== y ||
+    t.getUTCMonth() !== mo - 1 ||
+    t.getUTCDate() !== d ||
+    t.getUTCHours() !== h ||
+    t.getUTCMinutes() !== mi ||
+    t.getUTCSeconds() !== sec
+  ) {
+    return null;
+  }
+  let offsetMin = 0;
+  if (m[8] !== "Z") {
+    const [oh, om] = [Number(m[10]), Number(m[11])];
+    if (oh > 23 || om > 59) return null;
+    offsetMin = (m[9] === "-" ? -1 : 1) * (oh * 60 + om);
+  }
+  const ms = Number((m[7] ?? "").padEnd(3, "0").slice(0, 3));
+  return t.getTime() + ms - offsetMin * 60_000;
+}
+
+export interface LinkValue {
+  uri: string;
+  params: Map<string, string>;
+}
+
+const TOKEN = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
+
+/** RFC 8288 `Link` field value -> links, or null when it cannot be read (an element not starting
+ * with `<`, an unclosed `<` or quoted-string, a malformed parameter). Links are split at commas
+ * outside `<...>` and quoted-strings; parameter values are a token or a quoted-string (`\x`
+ * escapes). Parameter names are lower-cased; only the first occurrence of a name counts. */
+export function parseLinkHeader(value: string): LinkValue[] | null {
+  const links: LinkValue[] = [];
+  let i = 0;
+  const n = value.length;
+  const ws = () => {
+    while (i < n && (value[i] === " " || value[i] === "\t")) i++;
+  };
+  while (i < n) {
+    ws();
+    if (value[i] === ",") {
+      i++; // empty list element (RFC 9110 #rule)
+      continue;
+    }
+    if (i >= n) break;
+    if (value[i] !== "<") return null;
+    const close = value.indexOf(">", i + 1);
+    if (close < 0) return null;
+    const link: LinkValue = { uri: value.slice(i + 1, close), params: new Map() };
+    i = close + 1;
+    for (;;) {
+      ws();
+      if (i >= n || value[i] === ",") break;
+      if (value[i] !== ";") return null;
+      i++;
+      ws();
+      let j = i;
+      while (j < n && TOKEN.test(value[j] as string)) j++;
+      if (j === i) return null;
+      const name = value.slice(i, j).toLowerCase();
+      i = j;
+      ws();
+      let v = "";
+      if (value[i] === "=") {
+        i++;
+        ws();
+        if (value[i] === '"') {
+          i++;
+          let closed = false;
+          while (i < n) {
+            const ch = value[i] as string;
+            if (ch === "\\") {
+              if (i + 1 >= n) return null;
+              v += value[i + 1];
+              i += 2;
+            } else if (ch === '"') {
+              i++;
+              closed = true;
+              break;
+            } else {
+              v += ch;
+              i++;
+            }
+          }
+          if (!closed) return null;
+        } else {
+          j = i;
+          while (j < n && TOKEN.test(value[j] as string)) j++;
+          if (j === i) return null;
+          v = value.slice(i, j);
+          i = j;
+        }
+      }
+      if (!link.params.has(name)) link.params.set(name, v);
+    }
+    links.push(link);
+    if (i < n) i++; // the separating comma
+  }
+  return links;
+}
+
+/** Whether a `Link` header has a link whose rel (a space-separated, case-insensitive list)
+ * includes `next`; null when the header cannot be parsed (the caller treats it as incomplete). */
+function hasNextLink(headers: Headers): boolean | null {
+  const link = headers.get("link");
+  if (link === null) return false;
+  const links = parseLinkHeader(link);
+  if (links === null) return null;
+  return links.some((l) =>
+    (l.params.get("rel") ?? "")
+      .toLowerCase()
+      .split(/[ \t]+/)
+      .includes("next"),
+  );
 }
 
 type Json = Record<string, unknown>;
@@ -269,15 +410,9 @@ export class GitHubProvider {
     pages_build_version: string;
   }): Promise<PagesCreateResult> {
     // send refuses such ids before effect_send; this only guards against a rounded POST body.
-    if (!isSafeArtifactId(input.artifact_id)) {
-      throw new PromotionError(3, `artifact id ${input.artifact_id} is not a safe integer`);
-    }
+    const body = { ...pagesDeploymentRequest(input), oidc_token: input.oidc_token };
     try {
-      const r = await this.request("POST", "/pages/deployments", {
-        artifact_id: Number(input.artifact_id),
-        pages_build_version: input.pages_build_version,
-        oidc_token: input.oidc_token,
-      });
+      const r = await this.request("POST", "/pages/deployments", body);
       if (r.status >= 500) return { kind: "unknown", reason: `HTTP ${r.status}` };
       if (r.status >= 400) return { kind: "rejected", status: r.status };
       const json = r.json as Json | null;
@@ -333,12 +468,20 @@ export class GitHubProvider {
 
   /** All deployments for the environment with created_at >= since. GitHub lists them newest
    * first, so the walk stops (complete) at the first page reaching back before `since`, or at a
-   * page without a `rel="next"` Link. A page out of created_at descending order, an unparseable
-   * created_at, an error, or MAX_DEPLOYMENT_PAGES pages = incomplete. */
+   * page without a `rel="next"` Link. A page out of created_at descending order, a created_at /
+   * updated_at that is not a strict RFC 3339 instant (parseStrictInstant), a Link header that
+   * cannot be parsed, an error, or MAX_DEPLOYMENT_PAGES pages = incomplete. An invalid `since`
+   * is the caller's error (exit 3). */
   async listDeployments(opts: { environment: string; since: string }): Promise<
     Listing<Deployment>
   > {
-    const since = Date.parse(opts.since);
+    const since = parseStrictInstant(opts.since);
+    if (since === null) {
+      throw new PromotionError(
+        3,
+        `listDeployments: since ${JSON.stringify(opts.since)} is not an RFC 3339 instant`,
+      );
+    }
     const items: Deployment[] = [];
     const incomplete = (pages: number, reason: string): Listing<Deployment> => ({
       complete: false,
@@ -346,7 +489,6 @@ export class GitHubProvider {
       pages_fetched: pages,
       reason,
     });
-    if (Number.isNaN(since)) return incomplete(0, `unparseable since ${opts.since}`);
     const env = encodeURIComponent(opts.environment);
     let previous = Number.POSITIVE_INFINITY;
     for (let page = 1; page <= MAX_DEPLOYMENT_PAGES; page++) {
@@ -362,16 +504,26 @@ export class GitHubProvider {
       if (r.status !== 200 || !Array.isArray(r.json)) {
         return incomplete(page - 1, `page ${page}: ${r.status}`);
       }
+      const next = hasNextLink(r.headers);
+      if (next === null) return incomplete(page, `page ${page}: link_header_unparseable`);
       for (const raw of r.json as Json[]) {
         const d = toDeployment(raw);
-        const t = Date.parse(d.created_at);
-        if (Number.isNaN(t)) return incomplete(page, `page ${page}: unparseable created_at`);
+        const t = parseStrictInstant(d.created_at);
+        if (t === null) return incomplete(page, `page ${page}: created_at_invalid`);
+        const updated = raw.updated_at;
+        if (
+          updated !== undefined &&
+          updated !== null &&
+          (typeof updated !== "string" || parseStrictInstant(updated) === null)
+        ) {
+          return incomplete(page, `page ${page}: updated_at_invalid`);
+        }
         if (t > previous)
           return incomplete(page, `page ${page}: not in created_at descending order`);
         previous = t;
         if (t >= since) items.push(d);
       }
-      if (previous < since || !hasNextLink(r.headers)) {
+      if (previous < since || !next) {
         return { complete: true, items, pages_fetched: page };
       }
     }

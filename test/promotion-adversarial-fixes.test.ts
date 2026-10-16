@@ -8,6 +8,10 @@
 //   R2-2. a leading UTF-8 BOM was silently dropped from tar / zip entry names;
 //   R2-3. the deployments listing stopped at 50 pages (incomplete -> finalize locked forever);
 //   R2-4. an artifact id beyond 2^53 was POSTed as a rounded neighbour.
+// Third round (the negative-side tests below fail before their fix, as noted per describe):
+//   R3-1. a quoted comma in a Link parameter hid rel="next" (listing ended early -> abandonment);
+//   R3-2. Date.parse rolled 2026-02-30 / "0" / zone-less times over into "valid" instants;
+//   R3-3. request_fingerprint hashed artifact_id as a string while the POST body carries a number.
 
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -15,9 +19,15 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { runPromote } from "../src/promotion/commands.js";
 import { buildEvent } from "../src/promotion/fold.js";
 import { type GitRunner, execGit } from "../src/promotion/git-cas.js";
-import { type FetchFn, GitHubProvider, isSafeArtifactId } from "../src/promotion/provider.js";
+import {
+  type FetchFn,
+  GitHubProvider,
+  isSafeArtifactId,
+  parseLinkHeader,
+  parseStrictInstant,
+} from "../src/promotion/provider.js";
 import { TarError, readTar } from "../src/promotion/tar.js";
-import { EXIT } from "../src/promotion/types.js";
+import { EXIT, PromotionError, jcsDigest } from "../src/promotion/types.js";
 import {
   HEAD_SHA,
   REPO,
@@ -771,5 +781,242 @@ describe("R2-4: artifact ids beyond Number.MAX_SAFE_INTEGER are refused", () => 
     const r = await authorizeAttempt(sb, 1, fetch, EXIT.precondition);
     expect(String(r.output.error)).toMatch(/9007199254740993/);
     expect(git(sb.remote, ["for-each-ref", "refs/heads/promotion-ledger"]).trim()).toBe("");
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+
+/** One GET /deployments response per page (1-based), each with its own Link header (or none);
+ * every other request goes to `inner`. */
+function deploymentPages(
+  inner: FetchFn,
+  pages: (page: number) => { items: unknown[]; link?: string },
+): FetchFn {
+  return async (url, init) => {
+    const u = new URL(url);
+    if (u.pathname !== `/repos/${REPO}/deployments` || (init?.method ?? "GET") !== "GET") {
+      return inner(url, init);
+    }
+    const { items, link } = pages(Number(u.searchParams.get("page") ?? "1"));
+    const headers: Record<string, string> = { "content-type": "application/json" };
+    if (link !== undefined) headers.link = link;
+    return new Response(JSON.stringify(items), { status: 200, headers });
+  };
+}
+
+const unreachable: FetchFn = async () => {
+  throw new Error("unexpected request");
+};
+
+describe("R3-1: Link headers are parsed per RFC 8288 (quoted-string aware)", () => {
+  // Before the fix the regex stopped a link's parameters at the first comma, even inside a
+  // quoted-string: (a) / (d) saw no rel="next", ended the listing after page 1 as "complete" and
+  // reconcile wrote abandoned_no_effect; (c) never returned incomplete for an unparseable header.
+  const SINCE = "2026-10-16T12:00:00Z";
+  const at = (s: number) => new Date(Date.parse(SINCE) + s * 1000).toISOString();
+  const dep = (id: number, createdAt: string) => ({
+    id,
+    sha: "b".repeat(40),
+    ref: "main",
+    environment: "github-pages",
+    created_at: createdAt,
+    payload: {},
+    description: null,
+  });
+  const twoPages = (link: string) =>
+    new GitHubProvider({
+      fetch: deploymentPages(unreachable, (page) =>
+        page === 1 ? { items: [dep(2, at(20))], link } : { items: [dep(1, at(10))] },
+      ),
+      apiBase: "https://api.test",
+      repository: REPO,
+    });
+  const list = (p: GitHubProvider) =>
+    p.listDeployments({ environment: "github-pages", since: SINCE });
+
+  it("parseLinkHeader: quoted commas / escapes, token values, case-insensitive names", () => {
+    const links = parseLinkHeader(
+      '<https://x/?page=2>; title="page, two \\"2\\""; REL=next, <https://x/?page=9>; rel="last"',
+    );
+    expect(links?.map((l) => [l.uri, l.params.get("rel"), l.params.get("title")])).toEqual([
+      ["https://x/?page=2", "next", 'page, two "2"'],
+      ["https://x/?page=9", "last", undefined],
+    ]);
+  });
+
+  for (const [name, link] of [
+    ["a quoted comma before rel", '<https://x/?page=2>; title="page, two"; rel="next"'],
+    ["rel=next without quotes", "<https://x/?page=2>; rel=next"],
+    ['rel="prev next" (several relation types)', '<https://x/?page=2>; rel="prev next"'],
+  ] as const) {
+    it(`${name}: page 2 is walked`, async () => {
+      const r = await list(twoPages(link));
+      expect(r.complete, r.reason).toBe(true);
+      expect(r.pages_fetched).toBe(2);
+      expect(r.items.map((d) => d.id)).toEqual(["2", "1"]);
+    });
+  }
+
+  for (const [name, link] of [
+    ["an unclosed <", '<https://x/?page=2; rel="next"'],
+    ["an unclosed quoted-string", '<https://x/?page=2>; title="page, two; rel="next"'],
+    ["an element not starting with <", 'https://x/?page=2; rel="next"'],
+    ["garbage after the uri", '<https://x/?page=2> rel="next"'],
+  ] as const) {
+    it(`${name} -> incomplete (link_header_unparseable)`, async () => {
+      const r = await list(twoPages(link));
+      expect(r.complete).toBe(false);
+      expect(r.reason).toMatch(/link_header_unparseable/);
+    });
+  }
+
+  it("reconcile: a marker deployment on page 2 behind a quoted-comma Link -> candidates_found, no abandoned_no_effect", async () => {
+    const sb = sandbox();
+    await completedAttempt1(sb); // deployment 777 at T0, recorded for attempt 1
+    await authorizeAttempt(sb, 2);
+    sb.state.create = "timeout";
+    const sent = await runPromote("send", sendFlags(sb, RUN_ID, 2), deps(sb));
+    expect(sent.exitCode, JSON.stringify(sent.output)).toBe(EXIT.nonTerminal);
+    sb.state.now = addSeconds(T0, 3600); // settle window over: only the listing can block
+    const d777 = sb.state.deployments.find((d) => d.id === 777);
+    const target = {
+      id: 901,
+      sha: HEAD_SHA,
+      ref: `${HEAD_SHA}:${RUN_ID}:2`,
+      environment: "github-pages",
+      created_at: addSeconds(T0, -10),
+      payload: {},
+      description: null,
+    };
+    const fetch = deploymentPages(deps(sb).fetch, (page) =>
+      page === 1
+        ? {
+            items: [d777],
+            link: `<https://api.test/repositories/1/deployments?page=2>; title="page, two"; rel="next"`,
+          }
+        : { items: [target] },
+    );
+    const head = remoteHead(sb);
+    const r = await runPromote("reconcile", reconcileFlags(sb, 2), deps(sb, { fetch }));
+    expect(r.exitCode, JSON.stringify(r.output)).toBe(EXIT.nonTerminal);
+    expect(r.output.status).toBe("candidates_found");
+    expect(r.output.candidates).toEqual(["901"]);
+    expect(remoteHead(sb)).toBe(head);
+    expect(JSON.stringify(remoteLedger(sb))).not.toContain("abandoned_no_effect");
+  });
+});
+
+describe("R3-2: deployment / since times are strict RFC 3339 instants", () => {
+  // Before the fix only Date.parse's NaN was checked: 2026-02-30 became 2026-03-02, "0" the year
+  // 2000, and zone-less / space-separated times local time -- all "valid", so the listing ended
+  // complete and reconcile wrote abandoned_no_effect over a deployment it could not date.
+  const SINCE = "2026-10-16T12:00:00Z";
+  const dep = (id: number, createdAt: string, extra: Record<string, unknown> = {}) => ({
+    id,
+    sha: "b".repeat(40),
+    ref: "main",
+    environment: "github-pages",
+    created_at: createdAt,
+    payload: {},
+    description: null,
+    ...extra,
+  });
+  const listOf = (items: unknown[], since = SINCE) =>
+    new GitHubProvider({
+      fetch: deploymentPages(unreachable, () => ({ items })),
+      apiBase: "https://api.test",
+      repository: REPO,
+    }).listDeployments({ environment: "github-pages", since });
+
+  it("parseStrictInstant", () => {
+    expect(parseStrictInstant("2026-10-16T12:00:00Z")).toBe(Date.parse("2026-10-16T12:00:00Z"));
+    expect(parseStrictInstant("2026-10-16T21:00:00.5+09:00")).toBe(
+      Date.parse("2026-10-16T12:00:00.500Z"),
+    );
+    expect(parseStrictInstant("2024-02-29T00:00:00.123456789Z")).toBe(
+      Date.parse("2024-02-29T00:00:00.123Z"),
+    );
+    for (const bad of [
+      "2026-02-30T12:00:00Z",
+      "2025-02-29T12:00:00Z",
+      "2026-10-16T24:00:00Z",
+      "2026-10-16T12:00:60Z",
+      "2026-10-16T12:00:00+24:00",
+      "0",
+      "2026-10-16 12:00:00",
+      "2026-10-16T12:00:00",
+      "2026-10-16T12:00Z",
+      "2026-10-16T12:00:00.Z",
+    ]) {
+      expect(parseStrictInstant(bad), bad).toBeNull();
+    }
+  });
+
+  for (const bad of ["2026-02-30T12:00:00Z", "0", "2026-10-16 12:00:00", "2026-10-16T12:00:00"]) {
+    it(`created_at ${JSON.stringify(bad)} -> incomplete (created_at_invalid)`, async () => {
+      const r = await listOf([dep(2, "2026-10-16T13:00:00Z"), dep(1, bad)]);
+      expect(r.complete).toBe(false);
+      expect(r.reason).toMatch(/created_at_invalid/);
+    });
+  }
+
+  it("updated_at that is not an instant -> incomplete (updated_at_invalid)", async () => {
+    const r = await listOf([
+      dep(1, "2026-10-16T13:00:00Z", { updated_at: "2026-02-30T12:00:00Z" }),
+    ]);
+    expect(r.complete).toBe(false);
+    expect(r.reason).toMatch(/updated_at_invalid/);
+  });
+
+  it("Z and +09:00 instants (with updated_at) -> complete", async () => {
+    const r = await listOf([
+      dep(3, "2026-10-17T00:00:00+09:00", { updated_at: "2026-10-16T15:01:00Z" }),
+      dep(2, "2026-10-16T14:00:00.250Z"),
+      dep(1, "2026-10-16T20:00:00+09:00"),
+    ]);
+    expect(r.complete, r.reason).toBe(true);
+    expect(r.items.map((d) => d.id)).toEqual(["3", "2"]);
+  });
+
+  it("an invalid since is the caller's error (exit 3), not a listing", async () => {
+    await expect(listOf([], "2026-02-30T12:00:00Z")).rejects.toMatchObject({
+      constructor: PromotionError,
+      exitCode: 3,
+    });
+  });
+
+  it("reconcile: a deployment dated 2026-02-30 -> listing_incomplete, no abandoned_no_effect", async () => {
+    const sb = sandbox();
+    await authorizeAttempt(sb, 1);
+    sb.state.create = "timeout";
+    await runPromote("send", sendFlags(sb), deps(sb));
+    sb.state.now = addSeconds(T0, 3600);
+    const fetch = deploymentPages(deps(sb).fetch, () => ({
+      items: [dep(950, "2026-02-30T12:00:00Z")],
+    }));
+    const head = remoteHead(sb);
+    const r = await runPromote("reconcile", reconcileFlags(sb, 1), deps(sb, { fetch }));
+    expect(r.exitCode, JSON.stringify(r.output)).toBe(EXIT.nonTerminal);
+    expect(r.output.status).toBe("listing_incomplete");
+    expect(remoteHead(sb)).toBe(head);
+    expect(JSON.stringify(remoteLedger(sb))).not.toContain("abandoned_no_effect");
+  });
+});
+
+describe("R3-3: request_fingerprint = JCS sha256 of the POST body without oidc_token", () => {
+  // Before the fix the fingerprint hashed {artifact_id: "9001"} (a string) while the POST body
+  // carried 9001 (a number), so the digest of the body sent differed from request_fingerprint.
+  it("send with pages artifact id 9001: fingerprint == digest of the token-stripped POST body", async () => {
+    const sb = sandbox();
+    await authorizeAttempt(sb, 1);
+    const r = await runPromote("send", sendFlags(sb), deps(sb));
+    expect(r.exitCode, JSON.stringify(r.output)).toBe(EXIT.ok);
+    const { oidc_token, ...body } = sb.state.postBodies[0] as Record<string, unknown>;
+    expect(typeof oidc_token).toBe("string");
+    expect(body.artifact_id).toBe(9001);
+    const send = remoteLedger(sb).find((e) => e.kind === "effect_send") as {
+      request_fingerprint: string;
+    };
+    expect(send.request_fingerprint).toBe(jcsDigest(body));
   });
 });
