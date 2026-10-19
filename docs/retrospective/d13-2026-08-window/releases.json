@@ -1,0 +1,454 @@
+{
+  "schema_version": "d13-retrospective/v0",
+  "_comment": "Retrospective dry-run over the D13 baseline window (2026-08-08..2026-08-22). NOT a KPI input and NOT a baseline input. Recomputed by scripts/retrospective-d13-preflight.mjs from the harvester metrics-data ref only. See README.md in this directory.",
+  "window": {
+    "from": "2026-08-08",
+    "to": "2026-08-22"
+  },
+  "enums": {
+    "preflight.status": [
+      "evaluable",
+      "not_evaluable"
+    ],
+    "preflight.reasons": [
+      "bundle_absent",
+      "selection_manifest_absent",
+      "policy_snapshot_absent",
+      "effective_risk_unrecorded",
+      "contract_pin_unrecorded"
+    ],
+    "preflight.receipt": [
+      "no_receipt_emitted"
+    ]
+  },
+  "releases": [
+    {
+      "index": 1,
+      "release_id": "spec-lane@0.4.0",
+      "repo": "shiki-yusuke/spec-lane",
+      "ref": {
+        "tag": "v0.4.0",
+        "commit": "4260ac4"
+      },
+      "ledger": {
+        "events": 0
+      },
+      "bundle": {
+        "present": false,
+        "path": null,
+        "digest": null
+      },
+      "selection_manifest": {
+        "present": false
+      },
+      "policy_snapshot": {
+        "present": false
+      },
+      "preflight": {
+        "status": "not_evaluable",
+        "reasons": [
+          "bundle_absent",
+          "selection_manifest_absent",
+          "policy_snapshot_absent",
+          "effective_risk_unrecorded",
+          "contract_pin_unrecorded"
+        ],
+        "receipt": "no_receipt_emitted"
+      },
+      "verification": {
+        "method": "harvester_ledger_and_bundles",
+        "ref": "origin/metrics-data",
+        "commit": "58ed3f36b16932550795a27211ef19c7c74b8d8e"
+      }
+    },
+    {
+      "index": 2,
+      "release_id": "spec-lane@0.5.0",
+      "repo": "shiki-yusuke/spec-lane",
+      "ref": {
+        "tag": "v0.5.0",
+        "commit": "1261bf7"
+      },
+      "ledger": {
+        "events": 0
+      },
+      "bundle": {
+        "present": false,
+        "path": null,
+        "digest": null
+      },
+      "selection_manifest": {
+        "present": false
+      },
+      "policy_snapshot": {
+        "present": false
+      },
+      "preflight": {
+        "status": "not_evaluable",
+        "reasons": [
+          "bundle_absent",
+          "selection_manifest_absent",
+          "policy_snapshot_absent",
+          "effective_risk_unrecorded",
+          "contract_pin_unrecorded"
+        ],
+        "receipt": "no_receipt_emitted"
+      },
+      "verification": {
+        "method": "harvester_ledger_and_bundles",
+        "ref": "origin/metrics-data",
+        "commit": "58ed3f36b16932550795a27211ef19c7c74b8d8e"
+      }
+    },
+    {
+      "index": 3,
+      "release_id": "spec-lane@0.5.1",
+      "repo": "shiki-yusuke/spec-lane",
+      "ref": {
+        "tag": "v0.5.1",
+        "commit": "1ff3301"
+      },
+      "ledger": {
+        "events": 0
+      },
+      "bundle": {
+        "present": false,
+        "path": null,
+        "digest": null
+      },
+      "selection_manifest": {
+        "present": false
+      },
+      "policy_snapshot": {
+        "present": false
+      },
+      "preflight": {
+        "status": "not_evaluable",
+        "reasons": [
+          "bundle_absent",
+          "selection_manifest_absent",
+          "policy_snapshot_absent",
+          "effective_risk_unrecorded",
+          "contract_pin_unrecorded"
+        ],
+        "receipt": "no_receipt_emitted"
+      },
+      "verification": {
+        "method": "harvester_ledger_and_bundles",
+        "ref": "origin/metrics-data",
+        "commit": "58ed3f36b16932550795a27211ef19c7c74b8d8e"
+      }
+    },
+    {
+      "index": 4,
+      "release_id": "spec-lane@0.5.2",
+      "repo": "shiki-yusuke/spec-lane",
+      "ref": {
+        "tag": "v0.5.2",
+        "commit": "222c3fc"
+      },
+      "ledger": {
+        "events": 0
+      },
+      "bundle": {
+        "present": false,
+        "path": null,
+        "digest": null
+      },
+      "selection_manifest": {
+        "present": false
+      },
+      "policy_snapshot": {
+        "present": false
+      },
+      "preflight": {
+        "status": "not_evaluable",
+        "reasons": [
+          "bundle_absent",
+          "selection_manifest_absent",
+          "policy_snapshot_absent",
+          "effective_risk_unrecorded",
+          "contract_pin_unrecorded"
+        ],
+        "receipt": "no_receipt_emitted"
+      },
+      "verification": {
+        "method": "harvester_ledger_and_bundles",
+        "ref": "origin/metrics-data",
+        "commit": "58ed3f36b16932550795a27211ef19c7c74b8d8e"
+      }
+    },
+    {
+      "index": 5,
+      "release_id": "spec-lane@0.6.0",
+      "repo": "shiki-yusuke/spec-lane",
+      "ref": {
+        "tag": "v0.6.0",
+        "commit": "7407075"
+      },
+      "ledger": {
+        "events": 0
+      },
+      "bundle": {
+        "present": false,
+        "path": null,
+        "digest": null
+      },
+      "selection_manifest": {
+        "present": false
+      },
+      "policy_snapshot": {
+        "present": false
+      },
+      "preflight": {
+        "status": "not_evaluable",
+        "reasons": [
+          "bundle_absent",
+          "selection_manifest_absent",
+          "policy_snapshot_absent",
+          "effective_risk_unrecorded",
+          "contract_pin_unrecorded"
+        ],
+        "receipt": "no_receipt_emitted"
+      },
+      "verification": {
+        "method": "harvester_ledger_and_bundles",
+        "ref": "origin/metrics-data",
+        "commit": "58ed3f36b16932550795a27211ef19c7c74b8d8e"
+      }
+    },
+    {
+      "index": 6,
+      "release_id": "spec-lane@0.7.0",
+      "repo": "shiki-yusuke/spec-lane",
+      "ref": {
+        "tag": "v0.7.0",
+        "commit": "a7392a5"
+      },
+      "ledger": {
+        "events": 0
+      },
+      "bundle": {
+        "present": false,
+        "path": null,
+        "digest": null
+      },
+      "selection_manifest": {
+        "present": false
+      },
+      "policy_snapshot": {
+        "present": false
+      },
+      "preflight": {
+        "status": "not_evaluable",
+        "reasons": [
+          "bundle_absent",
+          "selection_manifest_absent",
+          "policy_snapshot_absent",
+          "effective_risk_unrecorded",
+          "contract_pin_unrecorded"
+        ],
+        "receipt": "no_receipt_emitted"
+      },
+      "verification": {
+        "method": "harvester_ledger_and_bundles",
+        "ref": "origin/metrics-data",
+        "commit": "58ed3f36b16932550795a27211ef19c7c74b8d8e"
+      }
+    },
+    {
+      "index": 7,
+      "release_id": "evidence-docs@0.1.0",
+      "repo": "shiki-yusuke/evidence-docs",
+      "ref": {
+        "tag": "v0.1.0",
+        "commit": "f633fee"
+      },
+      "ledger": {
+        "events": 0
+      },
+      "bundle": {
+        "present": false,
+        "path": null,
+        "digest": null
+      },
+      "selection_manifest": {
+        "present": false
+      },
+      "policy_snapshot": {
+        "present": false
+      },
+      "preflight": {
+        "status": "not_evaluable",
+        "reasons": [
+          "bundle_absent",
+          "selection_manifest_absent",
+          "policy_snapshot_absent",
+          "effective_risk_unrecorded",
+          "contract_pin_unrecorded"
+        ],
+        "receipt": "no_receipt_emitted"
+      },
+      "verification": {
+        "method": "harvester_ledger_and_bundles",
+        "ref": "origin/metrics-data",
+        "commit": "58ed3f36b16932550795a27211ef19c7c74b8d8e"
+      }
+    },
+    {
+      "index": 8,
+      "release_id": "evidence-docs@0.2.0",
+      "repo": "shiki-yusuke/evidence-docs",
+      "ref": {
+        "tag": "v0.2.0",
+        "commit": "7f29921"
+      },
+      "ledger": {
+        "events": 0
+      },
+      "bundle": {
+        "present": false,
+        "path": null,
+        "digest": null
+      },
+      "selection_manifest": {
+        "present": false
+      },
+      "policy_snapshot": {
+        "present": false
+      },
+      "preflight": {
+        "status": "not_evaluable",
+        "reasons": [
+          "bundle_absent",
+          "selection_manifest_absent",
+          "policy_snapshot_absent",
+          "effective_risk_unrecorded",
+          "contract_pin_unrecorded"
+        ],
+        "receipt": "no_receipt_emitted"
+      },
+      "verification": {
+        "method": "harvester_ledger_and_bundles",
+        "ref": "origin/metrics-data",
+        "commit": "58ed3f36b16932550795a27211ef19c7c74b8d8e"
+      }
+    },
+    {
+      "index": 9,
+      "release_id": "agent-cost@0.1.0",
+      "repo": "shiki-yusuke/agent-cost",
+      "ref": {
+        "tag": "v0.1.0",
+        "commit": "a6126be"
+      },
+      "ledger": {
+        "events": 0
+      },
+      "bundle": {
+        "present": false,
+        "path": null,
+        "digest": null
+      },
+      "selection_manifest": {
+        "present": false
+      },
+      "policy_snapshot": {
+        "present": false
+      },
+      "preflight": {
+        "status": "not_evaluable",
+        "reasons": [
+          "bundle_absent",
+          "selection_manifest_absent",
+          "policy_snapshot_absent",
+          "effective_risk_unrecorded",
+          "contract_pin_unrecorded"
+        ],
+        "receipt": "no_receipt_emitted"
+      },
+      "verification": {
+        "method": "harvester_ledger_and_bundles",
+        "ref": "origin/metrics-data",
+        "commit": "58ed3f36b16932550795a27211ef19c7c74b8d8e"
+      }
+    },
+    {
+      "index": 10,
+      "release_id": "release-evidence@0.1.0",
+      "repo": "shiki-yusuke/release-evidence",
+      "ref": {
+        "tag": "v0.1.0",
+        "commit": "6669433"
+      },
+      "ledger": {
+        "events": 0
+      },
+      "bundle": {
+        "present": false,
+        "path": null,
+        "digest": null
+      },
+      "selection_manifest": {
+        "present": false
+      },
+      "policy_snapshot": {
+        "present": false
+      },
+      "preflight": {
+        "status": "not_evaluable",
+        "reasons": [
+          "bundle_absent",
+          "selection_manifest_absent",
+          "policy_snapshot_absent",
+          "effective_risk_unrecorded",
+          "contract_pin_unrecorded"
+        ],
+        "receipt": "no_receipt_emitted"
+      },
+      "verification": {
+        "method": "harvester_ledger_and_bundles",
+        "ref": "origin/metrics-data",
+        "commit": "58ed3f36b16932550795a27211ef19c7c74b8d8e"
+      }
+    },
+    {
+      "index": 11,
+      "release_id": "agent-metrics-dashboard@32572501427-1",
+      "repo": "shiki-yusuke/agent-metrics-harvester",
+      "ref": {
+        "tag": null,
+        "commit": "543dcc9"
+      },
+      "ledger": {
+        "events": 3
+      },
+      "bundle": {
+        "present": true,
+        "path": "release-evidence/bundles/bundle-63392d1a635e68f6.json",
+        "digest": "sha256:63392d1a635e68f670f07dcb717ad7e1437f8282be82a1dd8c0ab2c6a664c9e1"
+      },
+      "selection_manifest": {
+        "present": false
+      },
+      "policy_snapshot": {
+        "present": false
+      },
+      "preflight": {
+        "status": "not_evaluable",
+        "reasons": [
+          "selection_manifest_absent",
+          "policy_snapshot_absent",
+          "effective_risk_unrecorded",
+          "contract_pin_unrecorded"
+        ],
+        "receipt": "no_receipt_emitted"
+      },
+      "verification": {
+        "method": "harvester_ledger_and_bundles",
+        "ref": "origin/metrics-data",
+        "commit": "58ed3f36b16932550795a27211ef19c7c74b8d8e"
+      }
+    }
+  ]
+}
