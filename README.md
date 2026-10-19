@@ -86,6 +86,16 @@ Deployment state machine v1 (the platform design's **D5**):
 Contracts are owned by `ai-agent-skills-playbook` (schema + fixtures + verifier); this repo
 consumes them by file/CLI only — no cross-repo imports (design rule D8).
 
+## Retrospective dry-run (D13 window)
+
+[`docs/retrospective/d13-2026-08-window/`](docs/retrospective/d13-2026-08-window/README.md)
+runs the shadow evaluator's preflight after the fact over the 11 releases of the D13 baseline
+window (2026-08-08 to 2026-08-22), using only the harvester's `metrics-data` records. All 11 are
+`not_evaluable`: no selection manifest, policy snapshot, effective risk, or contract pin was
+recorded for any of them. The evaluator ran against 0 real releases. The abstain path is shown
+only with the synthetic replay packs. Re-check with `scripts/retrospective-d13-preflight.mjs`.
+This dry-run is not a KPI or baseline input.
+
 ## Non-goals (v0)
 
 Automatic promotion, automatic rollback, signed integrity, SLSA/SBOM. `actor` has no
