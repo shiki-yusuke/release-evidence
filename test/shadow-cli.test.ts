@@ -7,7 +7,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { beforeAll, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import type { ExactRecord, ShadowEvaluation, ShadowEvaluationInput } from "../src/shadow/input.js";
 import { recordContentDigest } from "../src/shadow/serialize.js";
 import {
@@ -155,10 +155,6 @@ function writeInput(dir: string, input: unknown): string {
 }
 
 describe("release-evidence-shadow CLI", () => {
-  beforeAll(() => {
-    execFileSync("pnpm", ["run", "build"], { cwd: REPO_ROOT, stdio: "pipe" });
-  });
-
   it("replay on a fully-resolvable input exits 0 and prints a shadow-evaluation/v0 (even though the verdict is abstained, not ready_for_approval)", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "release-evidence-shadow-cli-"));
     const inputPath = writeInput(dir, fullyResolvedInput());

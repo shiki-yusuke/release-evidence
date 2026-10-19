@@ -6,7 +6,7 @@ import { execFileSync } from "node:child_process";
 import { rmSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 import {
   forceRemoteCommit,
   git,
@@ -39,9 +39,6 @@ describe("release-evidence promote CLI", () => {
   const sb = makeSandbox();
   const common = { ...sb.common, "github-api": "https://api.invalid" };
   const { "github-api": _unused, ...lockFlags } = sb.common;
-  beforeAll(() => {
-    execFileSync("pnpm", ["run", "build"], { cwd: REPO_ROOT, stdio: "pipe" });
-  });
   afterAll(() => rmSync(sb.root, { recursive: true, force: true }));
 
   it("promote --help lists all six subcommands; each sub has its own --help", () => {

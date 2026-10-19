@@ -2,12 +2,12 @@
 // ref CAS (push --force-with-lease) is the linearization point: exactly one authorized lands;
 // the loser re-evaluates against the winner's head and is refused (exit 3) without writing.
 
-import { execFile, execFileSync } from "node:child_process";
+import { execFile } from "node:child_process";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
-import { beforeAll, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   addSourceRun,
   authorizeFlags,
@@ -24,10 +24,6 @@ const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..
 const WORKER = path.join(REPO_ROOT, "test", "fixtures", "promotion-authorize-worker.mjs");
 
 describe("promotion ledger CAS under concurrent writers", () => {
-  beforeAll(() => {
-    execFileSync("pnpm", ["run", "build"], { cwd: REPO_ROOT, stdio: "pipe" });
-  });
-
   it("two workers consuming one approval: one winner, the loser re-evaluates and is refused", async () => {
     const sb = makeSandbox();
     try {

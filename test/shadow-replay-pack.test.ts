@@ -12,7 +12,7 @@ import { mkdtempSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { beforeAll, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { validateBundle } from "../src/core/bundle.js";
 import { validateEvent } from "../src/core/event.js";
 import { checkReviewFindingAgainstVendoredVerifier } from "../src/shadow-cli/vendor-loader.js";
@@ -43,10 +43,6 @@ function listPackDirs(): string[] {
 }
 
 describe("replay pack format: CLI end-to-end (docs/replay-pack-format.md)", () => {
-  beforeAll(() => {
-    execFileSync("pnpm", ["run", "build"], { cwd: REPO_ROOT, stdio: "pipe" });
-  });
-
   const packNames = listPackDirs();
 
   it("at least the lane-backed and lane-ref-omitted packs are present (chunk 3's stated minimum)", () => {

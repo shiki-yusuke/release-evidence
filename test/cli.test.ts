@@ -9,7 +9,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { beforeAll, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { CONTRACTS_DIR, HAS_CONTRACTS_DIR } from "./helpers.js";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -29,11 +29,6 @@ function runCli(args: string[]): { status: number; stdout: string; stderr: strin
 }
 
 describe.skipIf(!HAS_CONTRACTS_DIR)("release-evidence CLI negative injection", () => {
-  beforeAll(() => {
-    // Guarantee dist/ reflects the current source before spawning it as a subprocess.
-    execFileSync("pnpm", ["run", "build"], { cwd: REPO_ROOT, stdio: "pipe" });
-  });
-
   it("`record` rejects an illegal transition with exit 3 and writes nothing", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "release-evidence-cli-record-"));
     const ledgerPath = path.join(dir, "release-events.jsonl");
@@ -230,10 +225,6 @@ describe.skipIf(!HAS_CONTRACTS_DIR)("release-evidence CLI negative injection", (
 // Argument-parsing checks don't touch schema validation, so they don't need
 // RELEASE_EVIDENCE_CONTRACTS_DIR -- this describe block runs unconditionally.
 describe("release-evidence CLI argument allowlist", () => {
-  beforeAll(() => {
-    execFileSync("pnpm", ["run", "build"], { cwd: REPO_ROOT, stdio: "pipe" });
-  });
-
   it("rejects an unrecognized flag (typo) with exit 2", () => {
     const result = runCli(["status", "--ledger", "/dev/null", "--relese-id", "x"]);
     expect(result.status).toBe(2);
