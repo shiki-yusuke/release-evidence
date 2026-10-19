@@ -199,7 +199,7 @@ describe("D13 retrospective: preflight script never involves the evaluator (d, s
     // one call site, so no alias or second spawn path can slip in.
     const cpImports = [
       ...source.matchAll(/import\s*\{([^}]*)\}\s*from\s*"node:child_process"/g),
-    ].map((m) => m[1].trim());
+    ].map((m) => (m[1] ?? "").trim());
     expect(cpImports).toEqual(["execFileSync"]);
     expect(source).not.toMatch(/from\s*"child_process"/);
     expect(source.match(/execFileSync\(/g)).toHaveLength(1);
