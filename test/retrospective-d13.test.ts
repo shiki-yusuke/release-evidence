@@ -195,6 +195,15 @@ describe("D13 retrospective: preflight script never involves the evaluator (d, s
     const execFileCalls = [...source.matchAll(/execFileSync\(\s*([^,\s]+)/g)].map((m) => m[1]);
     expect(execFileCalls).toEqual(['"git"']);
     expect(source).not.toContain("process.env");
+    // The only child_process import is the bare, un-aliased execFileSync, and there is exactly
+    // one call site, so no alias or second spawn path can slip in.
+    const cpImports = [
+      ...source.matchAll(/import\s*\{([^}]*)\}\s*from\s*"node:child_process"/g),
+    ].map((m) => m[1].trim());
+    expect(cpImports).toEqual(["execFileSync"]);
+    expect(source).not.toMatch(/from\s*"child_process"/);
+    expect(source.match(/execFileSync\(/g)).toHaveLength(1);
+    expect(source).not.toMatch(/\bas\s+\w+\s*\}/);
   });
 
   it("pins the eleven D13 release IDs in the source (not read back from releases.json)", () => {
