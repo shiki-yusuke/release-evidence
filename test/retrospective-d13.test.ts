@@ -20,7 +20,7 @@ import {
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { beforeAll, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import type { ShadowEvaluation } from "../src/shadow/input.js";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -362,10 +362,6 @@ describe.skipIf(!HAS_HARVESTER_DIR)(
 describe("D13 retrospective: abstain path is shown on SYNTHETIC fixtures only (f)", () => {
   // Existing synthetic packs (docs/replay-pack-format.md "Sample packs"); no real release.
   const packs = ["lane-ref-omitted", "lane-backed"];
-
-  beforeAll(() => {
-    execFileSync("pnpm", ["run", "build"], { cwd: REPO_ROOT, stdio: "pipe" });
-  });
 
   it.each(packs)("synthetic pack %s replays to its expected.json (verdict abstained)", (name) => {
     const dir = path.join(SYNTHETIC_PACKS_DIR, name);

@@ -4,13 +4,13 @@
 // O_APPEND write per event instead (see its own header comment) -- this test spawns two real
 // OS processes appending concurrently and asserts nothing was lost.
 
-import { execFile, execFileSync } from "node:child_process";
+import { execFile } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { readLedger } from "../src/core/ledger.js";
 import { HAS_CONTRACTS_DIR } from "./helpers.js";
 
@@ -27,11 +27,6 @@ function runWorker(ledgerPath: string, prefix: string, count: number): Promise<u
 describe.skipIf(!HAS_CONTRACTS_DIR)("concurrent ledger append", () => {
   let dir: string;
   let ledgerPath: string;
-
-  beforeAll(() => {
-    // The worker imports dist/src/core/ledger.js -- make sure it reflects current source.
-    execFileSync("pnpm", ["run", "build"], { cwd: REPO_ROOT, stdio: "pipe" });
-  });
 
   beforeEach(() => {
     dir = mkdtempSync(path.join(tmpdir(), "release-evidence-ledger-concurrency-"));
