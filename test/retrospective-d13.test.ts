@@ -14,6 +14,7 @@ import {
   readFileSync,
   readdirSync,
   statSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -38,6 +39,20 @@ if (!HAS_HARVESTER_DIR) {
       "Set it to a local agent-metrics-harvester clone (origin/metrics-data fetched) to run them.",
   );
 }
+
+const D13_RELEASE_IDS = [
+  "spec-lane@0.4.0",
+  "spec-lane@0.5.0",
+  "spec-lane@0.5.1",
+  "spec-lane@0.5.2",
+  "spec-lane@0.6.0",
+  "spec-lane@0.7.0",
+  "evidence-docs@0.1.0",
+  "evidence-docs@0.2.0",
+  "agent-cost@0.1.0",
+  "release-evidence@0.1.0",
+  "agent-metrics-dashboard@32572501427-1",
+];
 
 const REASON_CODES = [
   "bundle_absent",
@@ -85,7 +100,7 @@ describe("D13 retrospective: releases.json (a)", () => {
     expect(doc.schema_version).toBe("d13-retrospective/v0");
     expect(doc.releases).toHaveLength(11);
     expect(doc.releases.map((r) => r.index)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
-    expect(new Set(doc.releases.map((r) => r.release_id)).size).toBe(11);
+    expect(doc.releases.map((r) => r.release_id)).toEqual(D13_RELEASE_IDS);
     expect(doc.enums["preflight.status"]).toEqual(["evaluable", "not_evaluable"]);
     expect(doc.enums["preflight.reasons"]).toEqual(REASON_CODES);
   });
@@ -178,8 +193,12 @@ describe("D13 retrospective: preflight script never involves the evaluator (d, s
     expect(source.toLowerCase()).not.toContain("shadow");
     expect(source).not.toMatch(/\b(spawn|spawnSync|exec|execSync|fork|execFile)\s*\(/);
     const execFileCalls = [...source.matchAll(/execFileSync\(\s*([^,\s]+)/g)].map((m) => m[1]);
-    expect(execFileCalls).toEqual(["bin"]);
-    expect(source).toContain('const bin = process.env.GIT || "git";');
+    expect(execFileCalls).toEqual(['"git"']);
+    expect(source).not.toContain("process.env");
+  });
+
+  it("pins the eleven D13 release IDs in the source (not read back from releases.json)", () => {
+    for (const id of D13_RELEASE_IDS) expect(source).toContain(`"${id}"`);
   });
 });
 
@@ -188,6 +207,18 @@ describe("D13 retrospective: preflight script error handling (e)", () => {
     const res = runScript(["--releases", RELEASES_JSON]);
     expect(res.status).toBe(2);
     expect(res.stderr).toContain("--harvester");
+    expect(res.stdout).toBe("");
+  });
+
+  it("exits 2 when releases.json does not list exactly the eleven D13 releases (swapped ID)", () => {
+    const swapped = JSON.parse(readFileSync(RELEASES_JSON, "utf-8")) as RetroDoc;
+    (swapped.releases[2] as RetroRelease).release_id = "spec-lane@9.9.9";
+    const dir = mkdtempSync(path.join(tmpdir(), "release-evidence-retro-swapped-"));
+    const file = path.join(dir, "releases.json");
+    writeFileSync(file, JSON.stringify(swapped));
+    const res = runScript(["--harvester", tmpdir(), "--releases", file]);
+    expect(res.status).toBe(2);
+    expect(res.stderr).toContain("not the D13 window document");
     expect(res.stdout).toBe("");
   });
 
@@ -247,12 +278,69 @@ describe.skipIf(!HAS_HARVESTER_DIR)(
       expect(out.diffs.join("\n")).toContain("preflight.reasons");
     });
 
-    it("(d) succeeds with PATH emptied (only git, via $GIT, is reachable -- no evaluator binary)", () => {
+    it("(b) an unrelated record carrying an input key fails the run as unattributed and flips no status", () => {
+      // Clone the harvester, add one commit on top of metrics-data that records `effective_risk`
+      // under a release_id outside the window, and point the script at that commit.
+      const clone = mkdtempSync(path.join(tmpdir(), "release-evidence-retro-unrelated-"));
+      const g = (...a: string[]) =>
+        execFileSync("git", ["-C", clone, ...a], { encoding: "utf-8", stdio: "pipe" });
+      execFileSync("git", ["clone", "-q", "--no-checkout", harvester, clone], { stdio: "pipe" });
+      const base = execFileSync("git", ["-C", harvester, "rev-parse", "origin/metrics-data"], {
+        encoding: "utf-8",
+      }).trim();
+      g("fetch", "-q", "origin", base);
+      g("checkout", "-q", "-b", "unrelated", base);
+      writeFileSync(
+        path.join(clone, "release-evidence", "other.json"),
+        JSON.stringify({
+          release_id: "someone-else@1.0.0",
+          effective_risk: "low",
+          policy_digest: "sha256:0",
+        }),
+      );
+      g(
+        "-c",
+        "user.email=t@example.invalid",
+        "-c",
+        "user.name=t",
+        "add",
+        "release-evidence/other.json",
+      );
+      g(
+        "-c",
+        "user.email=t@example.invalid",
+        "-c",
+        "user.name=t",
+        "commit",
+        "-q",
+        "-m",
+        "unrelated record",
+      );
+      const res = runScript([
+        "--harvester",
+        clone,
+        "--releases",
+        RELEASES_JSON,
+        "--ref",
+        "unrelated",
+      ]);
+      expect(res.status).toBe(1);
+      const out = JSON.parse(res.stdout);
+      expect(out.summary).toEqual({ releases: 11, not_evaluable: 11, evaluable: 0 });
+      expect(out.diffs.some((d: string) => d.startsWith("unattributed key effective_risk"))).toBe(
+        true,
+      );
+      // The only other diffs are the verification commit (expected: different ref/commit).
+      for (const d of out.diffs) expect(d).toMatch(/^unattributed key|: verification: /);
+    });
+
+    it("(d) succeeds with a PATH that holds only git (no evaluator binary, no override)", () => {
       const git = execFileSync("sh", ["-c", "command -v git"], { encoding: "utf-8" }).trim();
       expect(path.isAbsolute(git)).toBe(true);
+      const onlyGit = mkdtempSync(path.join(tmpdir(), "release-evidence-retro-only-git-"));
+      symlinkSync(git, path.join(onlyGit, "git"));
       const res = runScript(["--harvester", harvester, "--releases", RELEASES_JSON], {
-        PATH: "",
-        GIT: git,
+        PATH: onlyGit,
         HOME: process.env.HOME,
       });
       expect(res.stderr).toBe("");

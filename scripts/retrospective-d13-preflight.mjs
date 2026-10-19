@@ -29,11 +29,30 @@ const VERIFICATION_METHOD = "harvester_ledger_and_bundles";
 const STATUSES = ["evaluable", "not_evaluable"];
 const RECEIPT_NOT_EMITTED = "no_receipt_emitted";
 
+// The eleven releases of the D13 window, in order. releases.json must list exactly these
+// (index 1..11); anything else is not the D13 document and is refused (exit 2) rather than
+// recomputed, so a swapped-in ID can never pass as one of the eleven.
+const D13_RELEASE_IDS = [
+  "spec-lane@0.4.0",
+  "spec-lane@0.5.0",
+  "spec-lane@0.5.1",
+  "spec-lane@0.5.2",
+  "spec-lane@0.6.0",
+  "spec-lane@0.7.0",
+  "evidence-docs@0.1.0",
+  "evidence-docs@0.2.0",
+  "agent-cost@0.1.0",
+  "release-evidence@0.1.0",
+  "agent-metrics-dashboard@32572501427-1",
+];
+
 // Reason vocabulary, in canonical order. Each non-bundle reason lists the record keys whose
-// appearance ANYWHERE on the ref (any JSON / JSONL record, at any depth) would count as a record
-// of that input, and the tree-path pattern that would count as a dedicated file for it. A hit
-// is never attributed to a specific release: it makes the input "present" for every release,
-// which then shows up as a diff for a human to resolve rather than being silently absorbed.
+// appearance counts as a record of that input, and the tree-path pattern that would count as a
+// dedicated file for it. A key counts FOR A RELEASE only when it appears inside a record that is
+// attributed to that release (one of its ledger events, or its bundle body). A key or path found
+// anywhere else on the ref is never applied to any release's status: it is reported as an
+// unattributed hit and makes the run fail (exit 1) for a human to resolve. An unrelated record
+// can therefore stop the run, but can never turn a release "evaluable".
 const REASONS = [
   { code: "bundle_absent" },
   {
@@ -77,9 +96,9 @@ function parseArgs(argv) {
 }
 
 function makeGit(harvester) {
-  const bin = process.env.GIT || "git";
+  // Only `git` from PATH is ever executed; there is no override.
   return (...gitArgs) =>
-    execFileSync(bin, ["-C", harvester, ...gitArgs], {
+    execFileSync("git", ["-C", harvester, ...gitArgs], {
       encoding: "utf-8",
       maxBuffer: 256 * 1024 * 1024,
       stdio: ["ignore", "pipe", "pipe"],
@@ -177,13 +196,7 @@ function scanHarvester(repo) {
       if (wanted.has(key)) keyHits.push({ path, key });
     }
   }
-  const inputRecorded = Object.fromEntries(
-    REASONS.filter((r) => r.keys).map((r) => [
-      r.code,
-      keyHits.some((h) => r.keys.includes(h.key)) || pathHits.some((h) => h.reason === r.code),
-    ]),
-  );
-  return { ledger, bundles, keyHits, pathHits, inputRecorded };
+  return { ledger, bundles, keyHits, pathHits };
 }
 
 function recompute(release, scan, diffs) {
@@ -221,8 +234,14 @@ function recompute(release, scan, diffs) {
     }
   }
 
+  // Inputs count as recorded for THIS release only inside records attributed to it.
+  const attributedKeys = new Set();
+  for (const record of [...events, ...(bundle ? [bundle.content] : [])]) collectKeys(record, attributedKeys);
+  const inputRecorded = Object.fromEntries(
+    REASONS.filter((r) => r.keys).map((r) => [r.code, r.keys.some((k) => attributedKeys.has(k))]),
+  );
   const reasons = REASONS.filter((r) =>
-    r.code === "bundle_absent" ? bundle === null : !scan.inputRecorded[r.code],
+    r.code === "bundle_absent" ? bundle === null : !inputRecorded[r.code],
   ).map((r) => r.code);
   const status = reasons.length === 0 ? "evaluable" : "not_evaluable";
   return {
@@ -232,8 +251,8 @@ function recompute(release, scan, diffs) {
     bundle: bundle
       ? { present: true, path: bundle.path, digest: bundle.digest }
       : { present: false, path: null, digest: null },
-    selection_manifest: { present: scan.inputRecorded.selection_manifest_absent },
-    policy_snapshot: { present: scan.inputRecorded.policy_snapshot_absent },
+    selection_manifest: { present: inputRecorded.selection_manifest_absent },
+    policy_snapshot: { present: inputRecorded.policy_snapshot_absent },
     preflight: status === "not_evaluable" ? { status, reasons, receipt: RECEIPT_NOT_EMITTED } : { status, reasons },
   };
 }
@@ -273,18 +292,44 @@ function main() {
   if (doc?.schema_version !== SCHEMA_VERSION || !Array.isArray(doc.releases)) {
     throw new UsageError(`--releases: expected schema_version ${SCHEMA_VERSION} with a releases array`);
   }
+  const listedIds = doc.releases.map((r) => r?.release_id);
+  const listedIndexes = doc.releases.map((r) => r?.index);
+  if (
+    JSON.stringify(listedIds) !== JSON.stringify(D13_RELEASE_IDS) ||
+    JSON.stringify(listedIndexes) !== JSON.stringify(D13_RELEASE_IDS.map((_, i) => i + 1))
+  ) {
+    throw new UsageError(
+      `--releases: not the D13 window document (expected exactly ${D13_RELEASE_IDS.length} releases, in order: ${D13_RELEASE_IDS.join(", ")})`,
+    );
+  }
 
   const repo = openHarvester(args.harvester, args.ref);
   const scan = scanHarvester(repo);
   const diffs = [];
-  const seen = new Set();
   const releases = doc.releases.map((release) => {
-    if (seen.has(release.release_id)) diffs.push(`duplicate release_id ${release.release_id}`);
-    seen.add(release.release_id);
     const got = recompute(release, scan, diffs);
     compare(release, got, args.ref, repo.commit, diffs);
     return got;
   });
+
+  // Any input key or dedicated path found outside a record attributed to one of the eleven
+  // releases is unattributed: it is never applied to a status, and it fails the run.
+  const listed = new Set(D13_RELEASE_IDS);
+  for (const h of scan.pathHits) diffs.push(`unattributed path for ${h.reason}: ${h.path}`);
+  const attributable = (path) => path === LEDGER_PATH || BUNDLE_PATH_PATTERN.test(path);
+  for (const h of scan.keyHits) {
+    if (!attributable(h.path)) {
+      diffs.push(`unattributed key ${h.key} in ${h.path} (not a ledger / bundle record)`);
+      continue;
+    }
+    for (const record of parseJsonRecords(h.path, repo.show(h.path))) {
+      const keys = new Set();
+      collectKeys(record, keys);
+      if (keys.has(h.key) && !listed.has(record?.release_id)) {
+        diffs.push(`unattributed key ${h.key} in ${h.path} (release_id ${JSON.stringify(record?.release_id ?? null)} is not in the D13 window)`);
+      }
+    }
+  }
 
   const out = {
     schema_version: "d13-retrospective-preflight/v0",

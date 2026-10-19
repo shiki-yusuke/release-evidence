@@ -70,15 +70,19 @@ The machine-readable record is [`releases.json`](releases.json) (`d13-retrospect
     --releases docs/retrospective/d13-2026-08-window/releases.json
   ```
 
-  It reads only the git ref (`rev-parse`, `ls-tree`, `show`; never the working tree) and
-  recomputes: ledger event count per `release_id`; bundle presence by `release_id` in the bundle
-  body, with the bundle's JCS sha256 checked against the recorded digest, the ledger events'
-  `bundle_digest`, and the source repo and commit; and the absence of manifest / policy /
-  effective risk / contract pin records. Absence is checked two ways: by tree path, and by
-  inspecting every JSON / JSONL record on the ref for the keys `selection_manifest_digest`,
-  `policy_snapshot`, `policy_digest`, `effective_risk`, `playbook_commit`, `contract_pin`. Any
-  difference from `releases.json` exits 1; a missing or unreadable harvester exits 2. It neither
-  imports nor spawns the evaluator.
+  It reads only the git ref (`rev-parse`, `ls-tree`, `show`; never the working tree; only `git`
+  from `PATH`, no override) and recomputes: ledger event count per `release_id`; bundle presence
+  by `release_id` in the bundle body, with the bundle's JCS sha256 checked against the recorded
+  digest, the ledger events' `bundle_digest`, and the source repo and commit; and the absence of
+  manifest / policy / effective risk / contract pin records. Absence is checked two ways: by tree
+  path, and by inspecting every JSON / JSONL record on the ref for the keys
+  `selection_manifest_digest`, `policy_snapshot`, `policy_digest`, `effective_risk`,
+  `playbook_commit`, `contract_pin`. A key counts for a release only inside a record attributed
+  to it (its ledger events or its bundle body); a key or dedicated path found anywhere else is
+  reported as unattributed and fails the run instead of changing any status. The eleven
+  `release_id` values are pinned in the script; a `releases.json` that lists anything else is
+  refused (exit 2). Any difference from `releases.json` exits 1; a missing or unreadable
+  harvester exits 2. It neither imports nor spawns the evaluator.
 - `test/retrospective-d13.test.ts` runs the script when `RELEASE_EVIDENCE_HARVESTER_DIR` is set.
 
 Tag / commit note: the `ref.commit` values are the commits recorded for this dry-run. In the
