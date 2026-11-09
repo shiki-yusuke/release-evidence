@@ -288,7 +288,7 @@ describe("release-evidence-shadow CLI", () => {
     expect(cLocale.stdout).toBe(jaLocale.stdout);
   });
 
-  it("input JSON with every object's key order reversed produces byte-identical stdout except input_digest/record_digest (two separate processes -- JCS canonicalizes object keys, never trusts input order)", () => {
+  it("input JSON with every object's key order reversed produces byte-identical stdout, input_digest/record_digest included (two separate processes -- JCS canonicalizes object keys, never trusts input order)", () => {
     const dirA = mkdtempSync(path.join(tmpdir(), "release-evidence-shadow-cli-"));
     const dirB = mkdtempSync(path.join(tmpdir(), "release-evidence-shadow-cli-"));
     const original = fullyResolvedInput();
