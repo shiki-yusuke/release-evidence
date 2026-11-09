@@ -156,6 +156,7 @@ function validEvaluation(overrides: Partial<ShadowEvaluation> = {}): ShadowEvalu
     input_errors: [],
     predicate_observations: [],
     candidate_receipt: null,
+    input_digest: SHA("i"),
     record_digest: SHA("h"),
     ...overrides,
   };

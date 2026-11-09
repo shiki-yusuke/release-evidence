@@ -8,8 +8,10 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { canonicalize } from "#vendor/jcs.mjs";
 import type { ExactRecord, ShadowEvaluation, ShadowEvaluationInput } from "../src/shadow/input.js";
 import { recordContentDigest } from "../src/shadow/serialize.js";
+import { verifyRecordDigest } from "../src/shadow/verify.js";
 import {
   validBundleContent,
   validEventContent,
@@ -148,6 +150,25 @@ function reverseKeyOrderDeep(value: unknown): unknown {
   return value;
 }
 
+/** F3 phase 2 (input_digest, cognitive-debt-metrics-v0 §1): `input_digest` is JCS over the input
+ * AS GIVEN, and JCS preserves array order -- so reordering `records[]` now legitimately changes
+ * `input_digest` and therefore `record_digest` (which covers it). Before input_digest existed these
+ * record-order tests asserted full stdout byte-identity; the diff is input_digest-only, so they now
+ * assert byte-identity of everything EXCEPT those two fields, that input_digest did change, and
+ * that each output's record_digest still self-verifies. */
+function expectIdenticalExceptInputBinding(stdoutA: string, stdoutB: string): void {
+  const a = JSON.parse(stdoutA) as ShadowEvaluation;
+  const b = JSON.parse(stdoutB) as ShadowEvaluation;
+  const strip = (e: ShadowEvaluation) => {
+    const { input_digest: _inputDigest, record_digest: _recordDigest, ...rest } = e;
+    return canonicalize(rest);
+  };
+  expect(strip(a)).toBe(strip(b));
+  expect(a.input_digest).not.toBe(b.input_digest);
+  expect(verifyRecordDigest(a)).toBe(true);
+  expect(verifyRecordDigest(b)).toBe(true);
+}
+
 function writeInput(dir: string, input: unknown): string {
   const inputPath = path.join(dir, "input.json");
   writeFileSync(inputPath, JSON.stringify(input));
@@ -267,7 +288,7 @@ describe("release-evidence-shadow CLI", () => {
     expect(cLocale.stdout).toBe(jaLocale.stdout);
   });
 
-  it("input JSON with every object's key order reversed produces byte-identical stdout (two separate processes -- JCS canonicalizes object keys, never trusts input order)", () => {
+  it("input JSON with every object's key order reversed produces byte-identical stdout, input_digest/record_digest included (two separate processes -- JCS canonicalizes object keys, never trusts input order)", () => {
     const dirA = mkdtempSync(path.join(tmpdir(), "release-evidence-shadow-cli-"));
     const dirB = mkdtempSync(path.join(tmpdir(), "release-evidence-shadow-cli-"));
     const original = fullyResolvedInput();
@@ -295,10 +316,10 @@ describe("release-evidence-shadow CLI", () => {
     const second = runCli(["replay", "--input", pathB]);
     expect(first.status).toBe(0);
     expect(second.status).toBe(0);
-    expect(first.stdout).toBe(second.stdout);
+    expectIdenticalExceptInputBinding(first.stdout, second.stdout);
   });
 
-  it("a duplicate-digest kind collision produces byte-identical (invalid_input) stdout regardless of records array order (two separate processes, terra review must-4)", () => {
+  it("a duplicate-digest kind collision produces byte-identical (invalid_input) stdout except input_digest/record_digest regardless of records array order (two separate processes, terra review must-4)", () => {
     const dirA = mkdtempSync(path.join(tmpdir(), "release-evidence-shadow-cli-"));
     const dirB = mkdtempSync(path.join(tmpdir(), "release-evidence-shadow-cli-"));
     const original = fullyResolvedInput();
@@ -328,12 +349,12 @@ describe("release-evidence-shadow CLI", () => {
     const second = runCli(["replay", "--input", pathB]);
     expect(first.status).not.toBe(0);
     expect(second.status).not.toBe(0);
-    expect(first.stdout).toBe(second.stdout);
+    expectIdenticalExceptInputBinding(first.stdout, second.stdout);
     const evaluation = JSON.parse(first.stdout) as ShadowEvaluation;
     expect(evaluation.evaluation_status).toBe("invalid_input");
   });
 
-  it("two INDEPENDENT invalid records (unrelated kinds/digests) produce byte-identical (invalid_input) stdout regardless of which one comes first (two separate processes, terra review round C: input_errors must sort deterministically, not accumulate in array-arrival order)", () => {
+  it("two INDEPENDENT invalid records (unrelated kinds/digests) produce byte-identical (invalid_input) stdout except input_digest/record_digest regardless of which one comes first (two separate processes, terra review round C: input_errors must sort deterministically, not accumulate in array-arrival order)", () => {
     const dirA = mkdtempSync(path.join(tmpdir(), "release-evidence-shadow-cli-"));
     const dirB = mkdtempSync(path.join(tmpdir(), "release-evidence-shadow-cli-"));
     const original = fullyResolvedInput();
@@ -353,7 +374,7 @@ describe("release-evidence-shadow CLI", () => {
     const second = runCli(["replay", "--input", pathB]);
     expect(first.status).not.toBe(0);
     expect(second.status).not.toBe(0);
-    expect(first.stdout).toBe(second.stdout);
+    expectIdenticalExceptInputBinding(first.stdout, second.stdout);
     const evaluation = JSON.parse(first.stdout) as ShadowEvaluation;
     expect(evaluation.evaluation_status).toBe("invalid_input");
     expect(evaluation.input_errors).toHaveLength(2);

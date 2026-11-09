@@ -13,7 +13,11 @@
 import { canonicalize } from "#vendor/jcs.mjs";
 import { toReceiptPredicate } from "./evaluate.js";
 import type { ShadowEvaluation } from "./input.js";
-import { computeInputManifestDigest, computeRecordDigest } from "./serialize.js";
+import {
+  computeInputDigest,
+  computeInputManifestDigest,
+  computeRecordDigest,
+} from "./serialize.js";
 
 /** True when `evaluation.record_digest` matches a fresh recomputation over the rest of the
  * object -- catches an attacker (or a bug) that edits any field and leaves the old
@@ -29,6 +33,13 @@ export function verifyRecordDigest(evaluation: ShadowEvaluation): boolean {
 export function verifyInputManifestDigest(evaluation: ShadowEvaluation): boolean {
   const recomputed = computeInputManifestDigest(evaluation.input_manifest.records);
   return recomputed === evaluation.input_manifest.digest;
+}
+
+/** True when `evaluation.input_digest` matches a fresh `computeInputDigest(input)` -- `input` is
+ * the value the caller actually handed to `evaluate()` (the CLI's `JSON.parse(--input bytes)`),
+ * so a wrapper bound to a different (or differently ordered) input never passes. */
+export function verifyInputDigest(evaluation: ShadowEvaluation, input: unknown): boolean {
+  return evaluation.input_digest === computeInputDigest(input);
 }
 
 /** True when `evaluation.candidate_receipt.predicates` is exactly the mechanical projection

@@ -410,6 +410,9 @@ export interface ShadowEvaluation {
     records: Array<{ kind: string; digest: string }>;
     digest: string;
   };
+  /** `"sha256:" + hex(sha256(JCS(input)))` over the exact input `evaluate()` received
+   * (serialize.ts `computeInputDigest`; cognitive-debt-metrics-v0 §1 評価ペア束縛). */
+  input_digest: string;
   evaluation_status: EvaluationStatus;
   /** Non-empty exactly when evaluation_status === "unknown" (schema-enforced below) -- why the
    * WHOLE evaluation (not one predicate) could not produce a receipt, e.g. selection_manifest
@@ -437,6 +440,7 @@ export const SHADOW_EVALUATION_SCHEMA_V0 = {
     "evaluation_cut",
     "evaluator",
     "input_manifest",
+    "input_digest",
     "evaluation_status",
     "unknown_reasons",
     "input_errors",
@@ -467,6 +471,8 @@ export const SHADOW_EVALUATION_SCHEMA_V0 = {
         digest: { type: "string", pattern: SHA256_REF_PATTERN },
       },
     },
+    // cognitive-debt-metrics-v0 §1: additive field on the v0 wrapper (schema_version unchanged).
+    input_digest: { type: "string", pattern: SHA256_REF_PATTERN },
     evaluation_status: { enum: ["evaluated", "unknown", "invalid_input"] },
     unknown_reasons: { type: "array", items: unknownReasonSchema },
     input_errors: { type: "array", items: inputErrorSchema },
