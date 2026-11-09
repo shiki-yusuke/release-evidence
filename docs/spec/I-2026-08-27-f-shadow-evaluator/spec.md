@@ -64,6 +64,10 @@ gate はしない。LLM 呼び出しは 0。live 導入は cohort-2 完了+デ�
 3. 改ざん注入: bundle 1 byte / finding claim / verification record / pointer digest 差し替え /
    candidate receipt の predicate 欠落・重複 / shadow output の record_digest 差し替え
 4. 決定論: 2プロセス byte 比較（TZ / locale / key order / record order を変えて cmp）
+   - 2026-11-09 改訂（cognitive-debt-metrics/v0 の M3 結合、wrapper に `input_digest` 追加）: `input_digest` =
+     `"sha256:" + hex(sha256(JCS(input)))` は JCS が配列順を保つため **record order に依存する**（入力 bytes の束縛が目的）。
+     record order を変えた比較では `input_digest` と、それを含む `record_digest` 以外の全 field が一致することを要求する。
+     TZ / locale / key order の比較は従来どおり全 bytes 一致
 
 ## 契約欠陥を見つけた場合（freeze-after-exercise）
 evaluator 側に例外 allowlist を入れない。failing replay pack を保存 → 実装バグか契約欠陥かを
