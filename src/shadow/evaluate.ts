@@ -52,6 +52,7 @@ import { PRE_PROMOTION_PREDICATE_IDS } from "./input.js";
 import { type InputError, inputError, laneRefOmittedReason, unknownReason } from "./reasons.js";
 import { type ResolvedRecordPool, resolveByDigest, resolveRecordPool } from "./resolver.js";
 import {
+  computeInputDigest,
   computeInputManifestDigest,
   computeRecordDigest,
   computeSemanticDigest,
@@ -882,6 +883,7 @@ interface WrapperFields {
 
 function finalize(
   input: ShadowEvaluationInput,
+  inputDigest: string,
   inputManifestRecords: Array<{ kind: string; digest: string }>,
   inputManifestDigest: string,
   fields: WrapperFields,
@@ -898,6 +900,10 @@ function finalize(
       playbook_contract_commit: input.contract_pin.playbook_commit,
     },
     input_manifest: { records: inputManifestRecords, digest: inputManifestDigest },
+    // cognitive-debt-metrics-v0 §1: binds this wrapper to the exact input it was computed from.
+    // Inside the draft BEFORE computeRecordDigest, so record_digest covers it too. Not part of
+    // candidate_receipt / deriveReceiptId -- receipt identity is unchanged by this field.
+    input_digest: inputDigest,
     record_digest: "",
     ...fields,
   };
@@ -907,6 +913,10 @@ function finalize(
 /** Pure evaluation core (spec.md: `evaluate(input): ShadowEvaluation`). `evaluation_cut`,
  * policy, risk, and contract pin are all read from `input`, never from any ambient clock/env. */
 export function evaluate(input: ShadowEvaluationInput): ShadowEvaluation {
+  // cognitive-debt-metrics-v0 §1: digest of the input exactly as handed in, taken before anything
+  // else reads it. Every return path below goes through finalize(), so all three
+  // evaluation_status values carry it.
+  const inputDigest = computeInputDigest(input);
   const pool = resolveRecordPool(input.records, input.evaluation_cut);
 
   // input_manifest reflects the record set actually AVAILABLE for this evaluation to consume
@@ -919,7 +929,7 @@ export function evaluate(input: ShadowEvaluationInput): ShadowEvaluation {
   const inputManifestDigest = computeInputManifestDigest(inputManifestRecords);
 
   if (pool.errors.length > 0) {
-    return finalize(input, inputManifestRecords, inputManifestDigest, {
+    return finalize(input, inputDigest, inputManifestRecords, inputManifestDigest, {
       evaluation_status: "invalid_input",
       unknown_reasons: [],
       input_errors: sortInputErrors(pool.errors),
@@ -934,7 +944,7 @@ export function evaluate(input: ShadowEvaluationInput): ShadowEvaluation {
   // ever reads a release_event, same short-circuit priority as pool.errors above.
   const collectionErrors = validateEventCollectionSemantics(pool);
   if (collectionErrors.length > 0) {
-    return finalize(input, inputManifestRecords, inputManifestDigest, {
+    return finalize(input, inputDigest, inputManifestRecords, inputManifestDigest, {
       evaluation_status: "invalid_input",
       unknown_reasons: [],
       input_errors: sortInputErrors(collectionErrors),
@@ -949,7 +959,7 @@ export function evaluate(input: ShadowEvaluationInput): ShadowEvaluation {
   // at all".
   const manifestRecord = resolveByDigest(pool, input.subject.selection_manifest_digest);
   if (!manifestRecord || manifestRecord.kind !== "selection_manifest") {
-    return finalize(input, inputManifestRecords, inputManifestDigest, {
+    return finalize(input, inputDigest, inputManifestRecords, inputManifestDigest, {
       evaluation_status: "unknown",
       unknown_reasons: [
         unknownReason("unknown_structural", {
@@ -967,7 +977,7 @@ export function evaluate(input: ShadowEvaluationInput): ShadowEvaluation {
 
   const bundleRecord = resolveByDigest(pool, input.subject.bundle_digest);
   if (!bundleRecord) {
-    return finalize(input, inputManifestRecords, inputManifestDigest, {
+    return finalize(input, inputDigest, inputManifestRecords, inputManifestDigest, {
       evaluation_status: "unknown",
       unknown_reasons: [
         unknownReason("referent_unresolved", {
@@ -988,7 +998,7 @@ export function evaluate(input: ShadowEvaluationInput): ShadowEvaluation {
   if (input.policy.digest !== null) {
     const policyRecord = resolveByDigest(pool, input.policy.digest);
     if (!policyRecord || policyRecord.kind !== "policy_snapshot") {
-      return finalize(input, inputManifestRecords, inputManifestDigest, {
+      return finalize(input, inputDigest, inputManifestRecords, inputManifestDigest, {
         evaluation_status: "unknown",
         unknown_reasons: [
           unknownReason("referent_unresolved", {
@@ -1016,7 +1026,7 @@ export function evaluate(input: ShadowEvaluationInput): ShadowEvaluation {
   const observations = PRE_PROMOTION_PREDICATE_IDS.map((id) => evaluatePredicate(id, ctx));
   const candidateReceipt = buildCandidateReceipt(input, observations, inputManifestDigest);
 
-  return finalize(input, inputManifestRecords, inputManifestDigest, {
+  return finalize(input, inputDigest, inputManifestRecords, inputManifestDigest, {
     evaluation_status: "evaluated",
     unknown_reasons: [],
     input_errors: [],

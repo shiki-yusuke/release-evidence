@@ -832,13 +832,19 @@ describe("evaluate: determinism", () => {
     expect(a.record_digest).toBe(b.record_digest);
   });
 
-  it("input.records array order does not affect input_manifest.digest or record_digest", () => {
+  // F3 phase 2: record_digest now covers input_digest (JCS of the input as given, array order
+  // preserved), so it legitimately moves with records[] order; the evaluation CONTENT must not.
+  it("input.records array order does not affect input_manifest.digest or anything but input_digest/record_digest", () => {
     const input = fullyResolvedInput();
     const reversed = { ...input, records: [...input.records].reverse() };
     const a = evaluate(input);
     const b = evaluate(reversed);
     expect(a.input_manifest.digest).toBe(b.input_manifest.digest);
-    expect(a.record_digest).toBe(b.record_digest);
+    const { input_digest: aInput, record_digest: aRecord, ...aRest } = a;
+    const { input_digest: bInput, record_digest: bRecord, ...bRest } = b;
+    expect(aRest).toEqual(bRest);
+    expect(aInput).not.toBe(bInput);
+    expect(aRecord).not.toBe(bRecord);
   });
 });
 
@@ -1324,7 +1330,7 @@ describe("evaluate: must-4 regression (terra review 2026-08-27) -- duplicate-dig
     expect(forward.input_errors).toEqual(reversed.input_errors);
   });
 
-  it("round C: two INDEPENDENT invalid records (unrelated kinds/digests, each its own record_invalid) sort deterministically -- reversing their array order does not change input_errors order, record_digest, or output bytes", () => {
+  it("round C: two INDEPENDENT invalid records (unrelated kinds/digests, each its own record_invalid) sort deterministically -- reversing their array order does not change input_errors order or any wrapper field but input_digest/record_digest", () => {
     // Two genuinely unrelated invalid records -- not a digest collision like the tests above --
     // so the only thing that could make their order in `input_errors` vary is resolver.ts
     // accumulating errors in array-arrival order (terra review round C: "独立した invalid
@@ -1365,7 +1371,12 @@ describe("evaluate: must-4 regression (terra review 2026-08-27) -- duplicate-dig
     // Byte-for-byte identical regardless of which broken record happened to come first in the
     // input array -- the whole point of a closed (code, digest, path) sort key.
     expect(forward.input_errors).toEqual(reversed.input_errors);
-    expect(forward.record_digest).toBe(reversed.record_digest);
+    // F3 phase 2: record_digest covers input_digest, which binds records[] order; everything
+    // else in the wrapper is identical (diff is input_digest-only).
+    const { input_digest: _fi, record_digest: _fr, ...forwardRest } = forward;
+    const { input_digest: _ri, record_digest: _rr, ...reversedRest } = reversed;
+    expect(forwardRest).toEqual(reversedRest);
+    expect(forward.input_digest).not.toBe(reversed.input_digest);
   });
 });
 

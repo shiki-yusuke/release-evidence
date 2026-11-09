@@ -96,6 +96,27 @@ recorded for any of them. The evaluator ran against 0 real releases. The abstain
 only with the synthetic replay packs. Re-check with `scripts/retrospective-d13-preflight.mjs`.
 This dry-run is not a KPI or baseline input.
 
+## 評価ペアの永続化（cognitive-debt M3 の入力）
+
+A shadow evaluation is an input for cognitive-debt metric M3 only when it is stored as a bound
+pair. To create the pair `<name>`:
+
+```bash
+release-evidence-shadow replay --input shadow-evaluations/<name>/input.json \
+  --out shadow-evaluations/<name>/evaluation.json
+```
+
+- Add `shadow-evaluations/<name>/input.json` and `evaluation.json` in **the same single commit**.
+  Do not change either file after that. To fix a pair, create a new `<name>`.
+- `evaluation.json` carries `input_digest` = `"sha256:" + hex(sha256(JCS(input.json)))`.
+  This is the JCS of the parsed input, so whitespace and key order do not change it, but the
+  order of `records[]` does. `record_digest` covers `input_digest`. `replay` recomputes
+  `input_digest` before it writes the output. A mismatch is a tool failure (exit 2).
+- The harvester checks this binding (cognitive-debt-metrics-v0 §1). It recomputes
+  `input_digest` from the committed `input.json` bytes and checks that both files were added
+  in one commit and never changed. A pair that fails a check is removed from the population
+  with a code such as `evaluation_pair_unbound`.
+
 ## Non-goals (v0)
 
 Automatic promotion, automatic rollback, signed integrity, SLSA/SBOM. `actor` has no

@@ -94,6 +94,16 @@ export function deriveReceiptId(parts: ReceiptIdParts): string {
   return `sha256:${sha256hex(canonicalize([parts.inputManifestDigest, parts.evaluatorVersion, parts.phase]))}`;
 }
 
+/** `input_digest` (cognitive-debt-metrics-v0 §1 評価ペア束縛): `"sha256:" + hex(sha256(JCS(input)))`
+ * where `input` is the exact value `evaluate()` was handed -- i.e. `JSON.parse(input.json bytes)`.
+ * Computed over the input AS GIVEN: no field is stripped and no array is sorted (JCS
+ * canonicalizes object keys only and preserves array order), so reordering `records[]` changes
+ * this digest while whitespace / key order in the source bytes does not. Lets a downstream
+ * harvester recompute from the committed input.json and bind it to this evaluation.json. */
+export function computeInputDigest(input: unknown): string {
+  return `sha256:${sha256hex(canonicalize(input))}`;
+}
+
 /** sha256(JCS(record)) with `record_digest` itself removed first -- the wrapper's own
  * self-digest. Does not mutate `record`. A caller that changes any field OTHER than
  * `record_digest` and recomputes will get a different digest; changing `record_digest` alone

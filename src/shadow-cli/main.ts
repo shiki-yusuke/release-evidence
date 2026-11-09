@@ -28,8 +28,9 @@ import {
   validateShadowEvaluation,
   validateShadowEvaluationInput,
 } from "../shadow/input.js";
-import { serializeShadowEvaluation } from "../shadow/serialize.js";
+import { computeInputDigest, serializeShadowEvaluation } from "../shadow/serialize.js";
 import {
+  verifyInputDigest,
   verifyInputManifestDigest,
   verifyPredicateProjection,
   verifyRecordDigest,
@@ -121,6 +122,9 @@ async function cmdReplay(flags: Flags): Promise<void> {
     process.exit(2);
   }
 
+  // Captured BEFORE evaluate() runs, from the freshly parsed --input value: if evaluate() ever
+  // mutated its argument in place, comparing against rawInput afterwards would be vacuous.
+  const expectedInputDigest = computeInputDigest(rawInput);
   const evaluation = evaluate(rawInput as ShadowEvaluationInput);
 
   const wrapperSchemaReasons = validateShadowEvaluation(evaluation);
@@ -154,6 +158,11 @@ async function cmdReplay(flags: Flags): Promise<void> {
   if (!verifyInputManifestDigest(evaluation)) {
     fail(
       "evaluate() produced an input_manifest.digest that does not match a fresh recomputation (tool failure)",
+    );
+  }
+  if (evaluation.input_digest !== expectedInputDigest || !verifyInputDigest(evaluation, rawInput)) {
+    fail(
+      "evaluate() produced an input_digest that does not match a fresh recomputation over --input (tool failure)",
     );
   }
   if (!verifyPredicateProjection(evaluation)) {
